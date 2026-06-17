@@ -1,4 +1,4 @@
 numpy==1.26.4
 scipy==1.13.0
-qiskit==1.0.2
-qiskit-aer==0.14.0
+qiskit>=1.0,<2.0
+qiskit-aer>=0.15,<1.0
