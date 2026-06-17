@@ -1409,7 +1409,8 @@ function applyAsset(){
   // SDR result
   setText('sdr-regime', d.regime);
   setText('sdr-var', d.varEx);
-  setText('sdr-analog', d.analog);
+  // sdr-analog is intentionally NOT touched here — it should only ever be
+  // set by the real /api/sdr response (corr_beta1_Y), never by placeholder data.
   resetBars();
 }
 
@@ -1796,7 +1797,9 @@ async function animateSDR(){
       document.getElementById('sdr-result').classList.remove('hidden');
       setText('sdr-regime', d.regime || 'ELEVATED');
       setText('sdr-var',    d.varEx  || '—');
-      setText('sdr-analog', d.analog || '—');
+      // sdr-analog placeholder removed — it now only gets set once the real
+      // /api/sdr response arrives (see fetchAndApplySDR), never overwritten
+      // with stale historical-analog text afterward.
 
       // SDR API 결과 우선, fallback은 stableCloud 색깔 카운팅
       const reg = window._sdrRegimes || (()=>{
