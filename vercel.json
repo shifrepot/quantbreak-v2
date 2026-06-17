@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/*.py",   "use": "@vercel/python" },
+    { "src": "index.html", "use": "@vercel/static"  }
+  ],
+  "routes": [
+    { "src": "/api/price",    "dest": "/api/price.py"    },
+    { "src": "/api/analysis", "dest": "/api/analysis.py" },
+    { "src": "/api/sdr",      "dest": "/api/sdr.py"      },
+    { "src": "/api/qaoa",     "dest": "/api/qaoa.py"     },
+    { "src": "/api/portfolio","dest": "/api/portfolio.py"},
+    { "src": "/api/stress",   "dest": "/api/stress.py"   },
+    { "src": "/(.*)",         "dest": "/index.html"      }
+  ]
+}
