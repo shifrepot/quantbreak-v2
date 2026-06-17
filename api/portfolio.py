@@ -303,6 +303,7 @@ def run_qaoa_portfolio_aer(asset_names, valid_assets, A=3.0, p=2, shots=2048):
     }
 
 
+class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             qs      = parse_qs(urlparse(self.path).query)
