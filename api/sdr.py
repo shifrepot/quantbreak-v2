@@ -151,11 +151,28 @@ class handler(BaseHTTPRequestHandler):
             # ── Rᵖ(Σ) Hilbert Space 투영
             projected, hilbert_used = project_hilbert(X, beta1, beta2, Sigma)
 
-            # ── Y 기준 레짐 분류
-            y_q33 = float(np.percentile(Y_cut, 33))
+            # ── β₁ 부호를 Y와 같은 방향으로 정렬
+            # (고유벡터는 부호가 임의이므로, projection이 클수록 위험이 커지는
+            #  방향이 되도록 정렬해야 이후 레짐 분류가 의미를 가짐)
+            corr_sign = float(np.corrcoef(projected[:, 0], Y_cut)[0, 1])
+            if corr_sign < 0:
+                beta1 = -beta1
+                projected[:, 0] = -projected[:, 0]
+                corr_sign = -corr_sign
+
+            # ── 레짐 분류: SIR 투영값(현재 관측 가능한 시장변수의 투영) 기준
+            # Y_cut은 미래 20일 결과이므로 "지금" 레짐 판단에 직접 쓰면 룩어헤드가 됨.
+            # SIR이 학습한 방향 beta1을 통해 X(현재 시점에 알 수 있는 시장변수)의
+            # 투영값으로 분류해야 SIR이 실제로 사용되는 것이 됨.
+            proj1 = projected[:, 0]
+            proj_q33 = float(np.percentile(proj1, 33))
+            proj_q66 = float(np.percentile(proj1, 66))
+            y_q33 = float(np.percentile(Y_cut, 33))   # 산점도 색칠 + 참고용으로 유지
             y_q66 = float(np.percentile(Y_cut, 66))
 
-            # 레짐별 포인트
+            # 레짐별 포인트 — 산점도는 "사후적으로 실제 어떤 레짐이었는지" 보여주는
+            # 교육용 시각화이므로 실제 Y(미래 결과) 기준 색칠을 유지함.
+            # (이 색은 레짐 확률 계산에는 쓰이지 않음 — 그건 아래에서 projection 기준으로 별도 계산)
             points = []
             regime_counts = {"crash":0, "elev":0, "safe":0}
             for i, (px, py) in enumerate(projected[:-1]):
@@ -176,24 +193,23 @@ class handler(BaseHTTPRequestHandler):
             cx = round(float(projected[-1, 0])*60, 4)
             cy = round(float(projected[-1, 1])*60, 4)
 
-            # ── 현재 레짐
-            recent_dd = float(Y_cut[-5:].mean())
-            if recent_dd <= y_q33:   regime = "CRASH ZONE"
-            elif recent_dd <= y_q66: regime = "ELEVATED"
-            else:                    regime = "SAFE ZONE"
+            # ── 현재 레짐: SIR projection 기준 (룩어헤드 없음)
+            recent_proj = float(proj1[-5:].mean())
+            if recent_proj <= proj_q33:   regime = "CRASH ZONE"
+            elif recent_proj <= proj_q66: regime = "ELEVATED"
+            else:                          regime = "SAFE ZONE"
 
-            # ── 레짐 확률 (Y 기준 분류)
-            total = sum(regime_counts.values()) or 1
-            p_crash = round(regime_counts["crash"] / total, 4)
-            p_elev  = round(regime_counts["elev"]  / total, 4)
-            p_safe  = round(regime_counts["safe"]  / total, 4)
+            # ── 레짐 확률: SIR projection 기준으로 분류한 비율
+            # (산점도 색깔의 regime_counts와는 다른 기준 — 의도적으로 분리)
+            regime_labels = np.where(proj1<=proj_q33, 0, np.where(proj1<=proj_q66, 1, 2))
+            total_proj = len(regime_labels)
+            p_crash = round(float(np.sum(regime_labels==0)) / total_proj, 4)
+            p_elev  = round(float(np.sum(regime_labels==1)) / total_proj, 4)
+            p_safe  = round(float(np.sum(regime_labels==2)) / total_proj, 4)
 
             # ── Density Matrix
-            # 대각항: 실제 레짐 확률
+            # 대각항: 실제 레짐 확률 (SIR projection 기준)
             # 비대각항: 실제 레짐 전환 빈도 (coherence)
-            # regime labels per time point
-            regime_labels = np.where(Y_cut <= y_q33, 0,
-                            np.where(Y_cut <= y_q66, 1, 2))
             # crash(0) ↔ safe(2) 전환 빈도
             transitions_cs = sum(
                 1 for i in range(len(regime_labels)-1)
@@ -245,9 +261,8 @@ class handler(BaseHTTPRequestHandler):
             # ── Tr(ρ·H_risk) = Σᵢ pᵢ·cᵢ = 현재 시장의 기대 꼬리위험
             expected_tail_risk = p_crash*cvar_crash + p_elev*cvar_elev + p_safe*cvar_safe
 
-            # ── β₁ 설명력
-            corr = float(np.corrcoef(projected[:, 0], Y_cut)[0, 1])
-            var_explained = round(corr**2 * 100, 1)
+            # ── β₁ 설명력 (부호 정렬 후 상관계수 재사용, 제곱이라 부호 무관)
+            var_explained = round(corr_sign**2 * 100, 1)
 
             # ── 주요 리스크 팩터
             top_idx    = int(np.argmax(np.abs(beta1)))
@@ -285,7 +300,7 @@ class handler(BaseHTTPRequestHandler):
                     "Y_definition":  "20-day forward maximum drawdown",
                     "Y_mean":        round(float(Y_cut.mean())*100, 2),
                     "Y_cvar5":       round(float(np.percentile(Y_cut, 5))*100, 2),
-                    "corr_beta1_Y":  round(corr, 3),
+                    "corr_beta1_Y":  round(corr_sign, 3),
                     "n_samples":     len(Y_cut),
                     "inner_product": "⟨u,v⟩_Σ = uᵀΣv (Rᵖ(Σ) Hilbert Space)",
                 },
