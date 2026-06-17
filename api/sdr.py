@@ -155,7 +155,11 @@ class handler(BaseHTTPRequestHandler):
             # (고유벡터는 부호가 임의이므로, projection이 클수록 위험이 커지는
             #  방향이 되도록 정렬해야 이후 레짐 분류가 의미를 가짐)
             corr_sign = float(np.corrcoef(projected[:, 0], Y_cut)[0, 1])
-            if corr_sign < 0:
+            if np.isnan(corr_sign):
+                # SIR projection의 분산이 거의 0이면 corrcoef가 NaN을 낼 수 있음
+                # (NaN은 표준 JSON이 아니라 JS 쪽에서 깨진 값으로 보임 — 0으로 안전하게 처리)
+                corr_sign = 0.0
+            elif corr_sign < 0:
                 beta1 = -beta1
                 projected[:, 0] = -projected[:, 0]
                 corr_sign = -corr_sign
