@@ -413,9 +413,19 @@ body::after {
     <!-- 4 quick stats -->
     <div class="grid4" id="ov-stats">
       <div class="card stat-box">
-        <div class="stat-val" id="ov-s0" style="color:var(--red)">HIGH</div>
-        <div class="stat-key">Quantum Risk Level</div>
-        <div class="stat-src">CVaR₅% · Tail Risk</div>
+        <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:4px;">
+          <div>
+            <div style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:1px;margin-bottom:3px;">GBM CVaR</div>
+            <div class="stat-val text-red" id="ov-s0-gbm" style="font-size:18px;">−8%</div>
+          </div>
+          <div style="font-size:14px;color:var(--muted);padding-bottom:4px;">vs</div>
+          <div>
+            <div style="font-size:9px;color:var(--cyan);font-family:'Space Mono',monospace;letter-spacing:1px;margin-bottom:3px;">Historical CVaR</div>
+            <div class="stat-val" id="ov-s0-hist" style="font-size:18px;color:var(--gold);">−22%</div>
+          </div>
+        </div>
+        <div class="stat-key">Expected Shortfall (5%)</div>
+        <div class="stat-src">GBM (normal) vs actual fat-tail distribution</div>
       </div>
       <div class="card stat-box">
         <div class="stat-val" id="ov-s1">42%</div>
@@ -1156,8 +1166,12 @@ body::after {
 
       <div id="rec-detail" class="hidden" style="margin-top:24px;border-top:1px solid var(--line);padding-top:20px;">
         <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:12px;">RECOMMENDED ALLOCATION</div>
-        <div id="allocation-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px;">
+        <div id="allocation-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;">
           <!-- filled by JS -->
+        </div>
+        <div style="margin-bottom:20px;">
+          <button class="btn" onclick="savePaperPosition()" id="save-position-btn" style="font-size:10px;background:var(--bg);border:1px solid var(--green);color:var(--green);">💾 SAVE AS PAPER POSITION</button>
+          <span id="save-position-status" style="font-size:10px;color:var(--muted);margin-left:10px;"></span>
         </div>
         <div class="grid2">
           <div>
@@ -1217,6 +1231,24 @@ body::after {
           <!-- filled by JS -->
         </tbody>
       </table>
+    </div>
+
+    <!-- PAPER TRADING TRACK RECORD -->
+    <div class="card mt16">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="card-label" style="margin-bottom:0;">📊 PAPER TRADING TRACK RECORD</div>
+        <button class="btn" onclick="loadPaperPositions()" id="refresh-positions-btn" style="font-size:9px;">↻ REFRESH</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
+        Each saved position records the QAOA-recommended allocation at that moment, with entry prices
+        fetched live. Liquidation threshold scales inversely with each asset's risk_mult — more leveraged
+        assets (higher risk_mult) get liquidated at a smaller loss, matching how leveraged ETFs actually behave:
+        <span class="mono" style="color:var(--gold);">threshold = −50% / risk_mult</span>
+        → TQQQ −27.8%, SOXL −25.0%, WTI −50.0%, NG −33.3%.
+      </p>
+      <div id="positions-list" style="display:flex;flex-direction:column;gap:10px;">
+        <div style="font-size:11px;color:var(--muted);">Click REFRESH to load saved positions.</div>
+      </div>
     </div>
   </div>
 
@@ -1382,8 +1414,8 @@ function applyAsset(){
   setText('ov-price', '$'+d.price.toFixed(2));
   const ochg=document.getElementById('ov-chg');
   if(ochg){ ochg.textContent=(d.up?'+':'')+d.chg.toFixed(2)+' ('+(d.up?'+':'')+d.chgPct.toFixed(2)+'%)'; ochg.className='asset-chg-big '+(d.up?'up':'dn'); }
-  setText('ov-s0', d.riskLv);
-  setStyle('ov-s0', 'color', d.riskLv==='EXTREME'?'var(--red)':d.riskLv==='HIGH'?'var(--red)':d.riskLv==='ELEVATED'?'var(--gold)':'var(--green)');
+  // ov-s0 (GBM CVaR vs Historical CVaR) — real values set by applyRealAnalysis
+  // placeholder: show dashes until API responds
   setText('ov-s1', d.vol);
   setText('ov-s2', d.crash);
   setText('ov-s3', d.safeLev);
@@ -2518,6 +2550,19 @@ function applyRealAnalysis(d, asset){
   setText('ov-s1', d.sigma+'%');
   setText('ov-s2', d.fat_tail_ratio+'×');
   setText('ov-s3', d.optimal_leverage+'×');
+  // ① GBM CVaR vs Historical CVaR (실제 값으로 하드코딩 교체)
+  if(typeof d.gbm_cvar === 'number'){
+    setText('ov-s0-gbm',  d.gbm_cvar.toFixed(1)+'%');
+  }
+  if(typeof d.regime_cvar === 'number'){
+    setText('ov-s0-hist', d.regime_cvar.toFixed(1)+'%');
+    // Historical CVaR가 GBM보다 얼마나 더 나쁜지로 카드 색상 표현
+    const gap = Math.abs(d.regime_cvar) - Math.abs(d.gbm_cvar);
+    const histEl = document.getElementById('ov-s0-hist');
+    if(histEl){
+      histEl.style.color = gap > 15 ? 'var(--red)' : gap > 8 ? 'var(--gold)' : 'var(--green)';
+    }
+  }
   // ASSETS 객체에 실제 값 주입
   if(ASSETS[asset]){
     ASSETS[asset].vol     = d.sigma+'%';
@@ -2643,6 +2688,94 @@ function applyRealStress(data){
 // Calls /api/sdr and /api/analysis directly for the current asset.
 // Does NOT depend on whether Tab ③'s SDR has been run.
 // ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+// PAPER TRADING — save QAOA allocation as a tracked position,
+// and check saved positions against live prices for liquidation.
+// ══════════════════════════════════════════════════════════
+async function savePaperPosition(){
+  const btn    = document.getElementById('save-position-btn');
+  const status = document.getElementById('save-position-status');
+  const data = window._portfolioData;
+  if(!data || !data.recommended_allocation){
+    status.textContent = '⚠ Run QAOA first.';
+    status.style.color = 'var(--red)';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '⏳ SAVING...';
+  status.textContent = 'Fetching live entry prices...';
+  status.style.color = 'var(--muted)';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/positions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({allocation: data.recommended_allocation})
+    });
+    const result = await res.json();
+    if(result.error) throw new Error(result.error);
+
+    status.textContent = `✓ Saved (id: ${result.position_id})`;
+    status.style.color = 'var(--green)';
+    btn.textContent = '💾 SAVE AS PAPER POSITION';
+    loadPaperPositions();   // 저장 즉시 트랙레코드도 갱신
+  } catch(e){
+    status.textContent = `⚠ Failed: ${e.message}`;
+    status.style.color = 'var(--red)';
+    btn.textContent = '💾 SAVE AS PAPER POSITION';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadPaperPositions(){
+  const listEl = document.getElementById('positions-list');
+  const btn = document.getElementById('refresh-positions-btn');
+  btn.disabled = true; btn.textContent = '⏳ LOADING...';
+  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">Loading...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/positions`);
+    const data = await res.json();
+    if(data.error) throw new Error(data.error);
+
+    if(!data.positions || data.positions.length === 0){
+      listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">No positions saved yet. Run QAOA and click SAVE AS PAPER POSITION.</div>';
+    } else {
+      listEl.innerHTML = data.positions.map(p => {
+        const date = new Date(p.created_at*1000).toLocaleString();
+        const portfolioColor = p.portfolio_status === 'LIQUIDATED' ? 'var(--red)' : 'var(--green)';
+        const rows = Object.entries(p.entries).map(([asset, e]) => {
+          if(e.error) return `<div style="font-size:10px;color:var(--muted);">${asset}: ${e.error}</div>`;
+          const statusColor = e.status === 'LIQUIDATED' ? 'var(--red)' : 'var(--green)';
+          const pnlColor = e.weighted_pnl_pct >= 0 ? 'var(--green)' : 'var(--red)';
+          return `
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px;font-size:10px;font-family:'Space Mono',monospace;padding:4px 0;border-bottom:1px solid var(--line);align-items:center;">
+              <span>${asset} (${e.level})</span>
+              <span style="color:var(--muted);">$${e.entry_price} → $${e.current_price}</span>
+              <span style="color:${pnlColor};">${e.weighted_pnl_pct>=0?'+':''}${e.weighted_pnl_pct}%</span>
+              <span style="color:var(--muted);">thresh ${e.liq_threshold_pct}%</span>
+              <span style="color:${statusColor};font-weight:700;">${e.status}</span>
+            </div>`;
+        }).join('');
+        return `
+          <div style="background:var(--bg);border:1px solid ${portfolioColor};border-left:3px solid ${portfolioColor};padding:12px 14px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+              <span style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;">${date} · id=${p.id}</span>
+              <span style="font-size:10px;font-weight:700;color:${portfolioColor};font-family:'Space Mono',monospace;">${p.portfolio_status}</span>
+            </div>
+            ${rows}
+          </div>`;
+      }).join('');
+    }
+  } catch(e){
+    listEl.innerHTML = `<div style="font-size:11px;color:var(--red);">⚠ Could not load positions: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↻ REFRESH';
+  }
+}
+
 async function runLiveExample(){
   const btn    = document.getElementById('live-example-btn');
   const status = document.getElementById('live-example-status');
