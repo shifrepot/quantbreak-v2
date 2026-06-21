@@ -434,19 +434,20 @@ body::after {
       </div>
       <div class="card stat-box">
         <div class="stat-val text-red" id="ov-s2">8.3×</div>
-        <div class="stat-key">Crash Freq. vs GBM (−15% threshold)</div>
+        <div class="stat-key">Tail Event Ratio</div>
+        <div class="stat-src">P(R&lt;−15%) · Observed vs Normal</div>
         <div class="stat-src">Fat Tail Ratio</div>
       </div>
       <div class="card stat-box">
-        <div class="stat-val text-green" id="ov-s3">1.4×</div>
-        <div class="stat-key">Lowest-CVaR Leverage</div>
-        <div class="stat-src">Historical CVaR minimization (Tab ②)</div>
+        <div class="stat-val" id="ov-s3" style="font-size:16px;color:var(--muted);">—</div>
+        <div class="stat-key">Current Regime</div>
+        <div class="stat-src">SIR projection · run Tab ③ SDR to update</div>
       </div>
     </div>
 
     <!-- mini price chart -->
     <div class="card mb16">
-      <div class="card-label">120-DAY HISTORICAL PRICE (Yahoo Finance)</div>
+      <div class="card-label">120-DAY HISTORICAL PRICE · Yahoo Finance (daily close)</div>
       <div class="chart-h220"><canvas id="ov-chart"></canvas></div>
     </div>
 
@@ -579,7 +580,7 @@ body::after {
     <div class="grid3">
       <div class="card stat-box">
         <div class="stat-val text-red" id="bd-s0">8.3×</div>
-        <div class="stat-key">Actual vs. Predicted Crash Freq.</div>
+        <div class="stat-key">Tail Event Ratio (Observed / GBM)</div>
       </div>
       <div class="card stat-box">
         <div class="stat-val text-red" id="bd-s1">−34%</div>
@@ -1561,18 +1562,16 @@ function makeCVaRChart(){
 }
 
 function makeOVChart(){
-  const ctx=document.getElementById('ov-chart').getContext('2d');
-  const labels=Array.from({length:60},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()-60+i); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); });
-  let v=ASSETS[current].price*0.82,data=[v];
-  const sigma=parseFloat(ASSETS[current].vol)/100;
-  for(let i=1;i<60;i++){
-    const shock=Math.random()<0.04?(Math.random()-.7)*0.1:0;
-    v*=(1+(Math.random()-.47)*sigma*0.18+shock); v=Math.max(v,0.5); data.push(Math.round(v*100)/100);
-  }
-  data[59]=ASSETS[current].price;
-  const color=ASSETS[current].up?'var(--green)':'var(--red)';
-  charts.ov=new Chart(ctx,{type:'line',data:{labels,datasets:[{data,borderColor:color,borderWidth:2,fill:true,backgroundColor:`rgba(${ASSETS[current].up?'0,216,120':'240,56,96'},.06)`,pointRadius:0,tension:0.3}]},
-    options:{plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#48536E',font:{size:9,family:'Space Mono'}},grid:{color:'rgba(26,32,56,.8)'}},y:{ticks:{color:'#48536E',font:{size:9,family:'Space Mono'}},grid:{color:'rgba(26,32,56,.8)'}}},responsive:true,maintainAspectRatio:false}});
+  // 가짜 랜덤 경로 제거 — Quant 프로젝트에서 가짜 데이터가 화면에 보이는 건 부적절.
+  // 대신 "Loading..." 상태를 캔버스에 직접 표시하고,
+  // 실제 Yahoo Finance 종가(closes)가 API 응답으로 오면 rebuildChartsWithRealData()가 덮어씀.
+  const canvas = document.getElementById('ov-chart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(72,83,110,0.5)';
+  ctx.font = "12px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.fillText('Loading market data...', canvas.width/2, canvas.height/2);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2133,7 +2132,7 @@ function buildCompareTable(){
     ['Return Distribution',     'Log-Normal (thin tails)',      'Historical CVaR — actual fat-tailed distribution'],
     ['Market State Model',      'Single state',                 'Density Matrix ρ — Mixed State per asset'],
     ['Risk Measure',            'GBM CVaR — single distribution','Tr(ρ·H_risk) — regime-weighted expected tail risk'],
-    ['Crash Frequency',         '0.3% / month (GBM estimate)',  'Actual: '+(d.crash||'8.3×')+' higher'],
+    ['Tail Event Ratio (P(R<−15%))',  '0.3% / month (GBM estimate)',  'Actual: '+(d.crash||'8.3×')+' higher — fat tail confirmed'],
     ['Lowest-CVaR Leverage (this asset)', '3× (product default)', d.safeLev+' minimizes Historical CVaR'],
     ['Tail Risk Reduction (this asset)',  'Not addressed',        d.cvarOpt+' CVaR ('+d.impr+' reduction)'],
     ['Cross-Asset Allocation',  'Not addressed',                'QAOA: 4 assets × 3 exposure levels, 81-combination QUBO (Tab ④)'],
@@ -2337,27 +2336,34 @@ function rebuildChartsWithRealData(d){
   const mu_d    = returns.reduce((a,b)=>a+b,0) / returns.length;
   const n       = returns.length;
 
-  // ── 1. Overview 가격 차트 (실제 수익률로 경로 복원)
+  // ── 1. Overview 가격 차트 — Yahoo 종가 직접 사용 (역산 제거)
   try{
     if(charts.ov) charts.ov.destroy();
     const ctx2 = document.getElementById('ov-chart').getContext('2d');
-    const curPrice = ASSETS[current].price;
-    const prices=[curPrice];
-    for(let i=returns.length-1;i>=0;i--) prices.unshift(prices[0]/(1+returns[i]));
-    const labels2=prices.map((_,i)=>{
+    // d.closes: price.py가 직접 내려주는 실제 종가 시계열
+    // d.closes 없으면 returns에서 역산(fallback, 구버전 호환용)
+    let prices;
+    if(d.closes && d.closes.length > 5){
+      prices = d.closes;
+    } else {
+      const curPrice = ASSETS[current].price;
+      prices = [curPrice];
+      for(let i=returns.length-1;i>=0;i--) prices.unshift(prices[0]/(1+returns[i]));
+    }
+    const labels2 = prices.map((_,i)=>{
       const dd=new Date(); dd.setDate(dd.getDate()-prices.length+1+i);
       return dd.toLocaleDateString('en-US',{month:'short',day:'numeric'});
     });
-    const col2=ASSETS[current].up?'var(--green)':'var(--red)';
-    charts.ov=new Chart(ctx2,{type:'line',data:{labels:labels2,datasets:[{
-      data:prices.map(p=>Math.round(p*100)/100),
-      borderColor:col2,borderWidth:2,fill:true,
+    const col2 = ASSETS[current].up ? 'var(--green)' : 'var(--red)';
+    charts.ov = new Chart(ctx2,{type:'line',data:{labels:labels2,datasets:[{
+      data: prices.map(p=>Math.round(p*100)/100),
+      borderColor:col2, borderWidth:2, fill:true,
       backgroundColor:`rgba(${ASSETS[current].up?'0,216,120':'240,56,96'},.06)`,
-      pointRadius:0,tension:0.3
+      pointRadius:0, tension:0.3
     }]},options:{plugins:{legend:{display:false}},
       scales:{x:{ticks:{color:'#48536E',font:{size:9,family:'Space Mono'}},grid:{color:'rgba(26,32,56,.8)'}},
               y:{ticks:{color:'#48536E',font:{size:9,family:'Space Mono'}},grid:{color:'rgba(26,32,56,.8)'}}},
-      responsive:true,maintainAspectRatio:false}});
+      responsive:true, maintainAspectRatio:false}});
   }catch(e){console.warn('ov:',e);}
 
   // ── 2. GBM 정규분포 곡선 (실제 sigma)
@@ -2517,6 +2523,28 @@ function applyRealPrice(d){
   const sbC=document.getElementById('sb-c-'+d.asset);
   if(sbC){ sbC.textContent=(d.up?'+':'')+d.chg_pct.toFixed(2)+'%';
            sbC.className='sb-asset-chg '+(d.up?'up':'dn'); }
+
+  // 가격 데이터가 오자마자 Overview 차트 즉시 그리기 (Yahoo 종가 직접 사용)
+  if(d.closes && d.closes.length > 5){
+    try {
+      if(charts.ov) charts.ov.destroy();
+      const ctx2 = document.getElementById('ov-chart').getContext('2d');
+      const labels2 = d.closes.map((_,i)=>{
+        const dd=new Date(); dd.setDate(dd.getDate()-d.closes.length+1+i);
+        return dd.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+      });
+      const col2 = d.up ? 'var(--green)' : 'var(--red)';
+      charts.ov = new Chart(ctx2,{type:'line',data:{labels:labels2,datasets:[{
+        data: d.closes.map(p=>Math.round(p*100)/100),
+        borderColor:col2, borderWidth:2, fill:true,
+        backgroundColor:`rgba(${d.up?'0,216,120':'240,56,96'},.06)`,
+        pointRadius:0, tension:0.3
+      }]},options:{plugins:{legend:{display:false}},
+        scales:{x:{ticks:{color:'#48536E',font:{size:9,family:'Space Mono'}},grid:{color:'rgba(26,32,56,.8)'}},
+                y:{ticks:{color:'#48536E',font:{size:9,family:'Space Mono'}},grid:{color:'rgba(26,32,56,.8)'}}},
+        responsive:true, maintainAspectRatio:false}});
+    } catch(e){ console.warn('ov-chart:', e); }
+  }
 }
 
 function applyRealAnalysis(d, asset){
@@ -2832,6 +2860,18 @@ async function fetchAndApplySDR(asset){
     if(ASSETS[asset]){
       ASSETS[asset].regime = data.regime;
       ASSETS[asset].varEx  = data.variance_explained+'%';
+    }
+
+    // ── Overview 카드 ④ (Current Regime) 업데이트 — SDR 결과로 실시간 반영
+    if(data.regime){
+      const regEl = document.getElementById('ov-s3');
+      if(regEl){
+        regEl.textContent = data.regime;
+        regEl.style.color =
+          data.regime.includes('CRASH')    ? 'var(--red)'  :
+          data.regime.includes('ELEVATED') ? 'var(--gold)' : 'var(--green)';
+        regEl.style.fontSize = '14px';
+      }
     }
 
     // ── Density Matrix 실제값 업데이트

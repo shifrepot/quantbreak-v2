@@ -10,7 +10,7 @@ TICKER_MAP = {
     "WTI": "USO", "NG": "UNG", "BOIL": "BOIL",
 }
 
-def fetch_yahoo(sym, days=70):
+def fetch_yahoo(sym, days=120):
     """Yahoo Finance v8 API 직접 호출 — yfinance 라이브러리 없이"""
     end   = int(time.time())
     start = int((datetime.utcnow() - timedelta(days=days)).timestamp())
@@ -45,7 +45,7 @@ class handler(BaseHTTPRequestHandler):
         sym   = TICKER_MAP.get(asset, asset)
 
         try:
-            prices  = fetch_yahoo(sym, days=70)
+            prices  = fetch_yahoo(sym, days=120)
             current = float(prices[-1])
             prev    = float(prices[-2])
             change  = current - prev
@@ -64,6 +64,7 @@ class handler(BaseHTTPRequestHandler):
                 "chg_pct": round(chg_pct, 2),
                 "up":      chg_pct >= 0,
                 "returns": [round(r, 6) for r in returns],
+                "closes":  [round(float(p), 4) for p in prices],  # 종가 시계열 직접 제공
             })
         except Exception as e:
             body = json.dumps({"error": str(e), "asset": asset})
