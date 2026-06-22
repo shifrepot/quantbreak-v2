@@ -24,7 +24,7 @@ PORTFOLIO_ASSETS = {
 MARKET_TICKERS = ["^VIX", "SPY", "TLT", "GLD", "^TNX"]
 EXPOSURE_LEVELS = [("High", 1.00), ("Medium", 0.50), ("Low", 0.15)]
 
-def fetch_yahoo(sym, days=130):
+def fetch_yahoo(sym, days=140):
     end   = int(time.time())
     start = int((datetime.utcnow() - timedelta(days=days)).timestamp())
     url   = (
@@ -43,7 +43,7 @@ def fetch_yahoo(sym, days=130):
         raise ValueError(f"Not enough data: {len(prices)}")
     return prices
 
-def compute_asset_risk(asset_sym, mkt_cols, days=130):
+def compute_asset_risk(asset_sym, mkt_cols, days=140):
     """
     개별 자산에 대해:
     SDR(SIR) → Density Matrix(레짐확률) → Born Rule → Risk Hamiltonian → Tr(ρH_risk)
@@ -328,7 +328,7 @@ class handler(BaseHTTPRequestHandler):
             mkt_cols = []
             for mkt_sym in MARKET_TICKERS:
                 try:
-                    mkt_cols.append(fetch_yahoo(mkt_sym, days=130))
+                    mkt_cols.append(fetch_yahoo(mkt_sym, days=140))
                 except Exception:
                     continue
             if len(mkt_cols) < 2:
@@ -338,7 +338,7 @@ class handler(BaseHTTPRequestHandler):
             asset_results = {}
             for name, info in PORTFOLIO_ASSETS.items():
                 try:
-                    asset_results[name] = compute_asset_risk(info["sym"], mkt_cols, days=130)
+                    asset_results[name] = compute_asset_risk(info["sym"], mkt_cols, days=140)
                 except Exception as e:
                     asset_results[name] = {"error": str(e)}
 

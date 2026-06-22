@@ -12,7 +12,7 @@ TICKER_MAP = {
 MARKET_TICKERS = ["^VIX", "SPY", "TLT", "GLD", "^TNX"]
 MARKET_NAMES   = ["VIX", "SPY", "TLT(Bond)", "Gold", "10Y Yield"]
 
-def fetch_yahoo(sym, days=130):
+def fetch_yahoo(sym, days=140):
     end   = int(time.time())
     start = int((datetime.utcnow() - timedelta(days=days)).timestamp())
     url   = (
@@ -108,7 +108,7 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             # ── 자산 가격
-            asset_prices = fetch_yahoo(sym, days=130)
+            asset_prices = fetch_yahoo(sym, days=140)
             if len(asset_prices) < 40:
                 raise ValueError(f"Not enough asset data: {len(asset_prices)}")
 
@@ -123,7 +123,7 @@ class handler(BaseHTTPRequestHandler):
             mkt_cols = []
             for mkt_sym in MARKET_TICKERS:
                 try:
-                    mp = fetch_yahoo(mkt_sym, days=130)
+                    mp = fetch_yahoo(mkt_sym, days=140)
                     mkt_cols.append(mp)
                 except Exception:
                     continue
