@@ -1,6 +1,6 @@
 from http.server import BaseHTTPRequestHandler
 import json, numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, kurtosis as sp_kurtosis
 from urllib.parse import urlparse, parse_qs
 import urllib.request, time
 from datetime import datetime, timedelta
@@ -92,6 +92,19 @@ class handler(BaseHTTPRequestHandler):
             lev1 = float(np.prod(1+returns)-1)*100
             vol_decay = round(lev3 - lev1*3, 1)
 
+            # ── Excess Kurtosis (Fat Tail 판별 기준)
+            # 정규분포 Excess Kurtosis = 0
+            # > 0  → Fat Tail (Leptokurtic) — 극단적 수익률이 정규분포보다 자주 발생
+            # ≈ 0  → Normal (Mesokurtic)
+            # < 0  → Thin Tail (Platykurtic)
+            excess_kurt = float(sp_kurtosis(returns, fisher=True))  # fisher=True → excess kurtosis
+            if excess_kurt > 0.5:
+                tail_type = "Fat Tail"
+            elif excess_kurt < -0.5:
+                tail_type = "Thin Tail"
+            else:
+                tail_type = "Normal"
+
             # ── GBM CVaR (정규분포 가정 — 과소평가)
             # CVaR_α = μ - σ·φ(z_α)/α
             # 정규분포는 꼬리가 얇아서 실제보다 낙관적
@@ -129,6 +142,8 @@ class handler(BaseHTTPRequestHandler):
                 "bs_tail_prob":      round(bs_tail_prob_15, 3),
                 "bs_tail_prob_30":   round(bs_tail_prob_30, 3),
                 "fat_tail_ratio":    fat_tail_ratio,
+                "excess_kurtosis":   round(excess_kurt, 2),
+                "tail_type":         tail_type,
                 "vol_decay":         vol_decay,
                 # 핵심 비교: GBM(정규분포) vs Historical(실제 분포)
                 # Historical이 항상 더 음수 (Fat Tail 반영)

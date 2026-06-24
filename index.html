@@ -517,15 +517,15 @@ body::after {
         <div class="vs-metric text-green" id="bd-gbm-crash">0.3%</div>
         <div class="vs-desc">monthly drawdown &gt;30% probability</div>
         <div class="vs-metric text-green mt16" id="bd-bs-tail">Normal</div>
-        <div class="vs-desc">tail behavior — thin, symmetric</div>
+        <div class="vs-desc">tail behavior — thin, symmetric (assumed)</div>
       </div>
       <div class="vs-divider">VS</div>
       <div class="vs-side quantum">
         <div class="vs-label cyan">EMPIRICAL DATA SHOWS</div>
         <div class="vs-metric text-red" id="bd-real-crash">2.5%</div>
-        <div class="vs-desc">actual frequency (8.3× higher)</div>
+        <div class="vs-desc" id="bd-real-crash-desc">actual frequency (8.3× higher)</div>
         <div class="vs-metric text-red mt16" id="bd-real-tail">Fat Tail</div>
-        <div class="vs-desc">asymmetric, heavy left tail, kurtosis &gt;6</div>
+        <div class="vs-desc" id="bd-real-tail-desc">excess kurtosis &gt; 0 — heavier left tail than normal</div>
       </div>
     </div>
 
@@ -2560,6 +2560,30 @@ function applyRealAnalysis(d, asset){
   setText('bd-real-crash', (d.bs_tail_prob*d.fat_tail_ratio/100).toFixed(2)+'%');
   setText('bd-s0',         d.fat_tail_ratio+'×');
   setText('bd-s1',         d.vol_decay+'%');
+
+  // Actual frequency 설명 업데이트
+  const crashDescEl = document.getElementById('bd-real-crash-desc');
+  if(crashDescEl) crashDescEl.textContent =
+    `actual frequency (${d.fat_tail_ratio}× higher than GBM)`;
+
+  // Tail type 실제 값으로 교체 (Excess Kurtosis 기반)
+  if(typeof d.excess_kurtosis === 'number' && d.tail_type){
+    const tailEl = document.getElementById('bd-real-tail');
+    if(tailEl){
+      tailEl.textContent = d.tail_type;
+      tailEl.style.color = d.tail_type === 'Fat Tail' ? 'var(--red)'  :
+                           d.tail_type === 'Normal'   ? 'var(--gold)' : 'var(--green)';
+    }
+    const tailDescEl = document.getElementById('bd-real-tail-desc');
+    if(tailDescEl){
+      const sign = d.excess_kurtosis > 0 ? '+' : '';
+      tailDescEl.textContent =
+        `excess kurtosis = ${sign}${d.excess_kurtosis.toFixed(2)} — ` +
+        (d.tail_type === 'Fat Tail'  ? 'heavier tails than normal (leptokurtic)' :
+         d.tail_type === 'Thin Tail' ? 'thinner tails than normal (platykurtic)' :
+                                        'tails similar to normal (mesokurtic)');
+    }
+  }
   // 탭② GBM vs Historical CVaR 비교 카드
   setText('bd-gbm-cvar',  (d.gbm_cvar  != null ? d.gbm_cvar.toFixed(1)  : '—')+'%');
   setText('bd-hist-cvar', (d.regime_cvar != null ? d.regime_cvar.toFixed(1) : '—')+'%');
