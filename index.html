@@ -2770,6 +2770,14 @@ function applyRealStress(data){
     setText('avg-gbm-err',  (s.avg_bs_underestimate    != null ? s.avg_bs_underestimate    : '—')+'%p');
     setText('avg-reg-err',  (s.avg_regime_underestimate != null ? s.avg_regime_underestimate : '—')+'%p');
     setText('avg-captured', (s.avg_additional_captured  != null ? s.avg_additional_captured  : '—')+'%');
+    // events-improved: 실제 케이스에서 Tr(ρH_risk)가 GBM보다 나은 경우 카운트
+    if(data.cases){
+      const improved = data.cases.filter(c =>
+        c.regime_underestimate != null && c.bs_underestimate != null &&
+        c.regime_underestimate < c.bs_underestimate
+      ).length;
+      setText('events-improved', improved + ' / ' + data.cases.length);
+    }
 
     setTimeout(()=>{
       const bBar = document.getElementById('avg-gbm-bar');
@@ -2780,8 +2788,8 @@ function applyRealStress(data){
       if(cBar) cBar.style.width = Math.min(Math.max(s.avg_additional_captured||0,0), 100)+'%';
     }, 300);
   }
-
-  animateStressTest();
+  // animateStressTest() 제거 — 이걸 호출하면 getStressData()(하드코딩 STRESS_DATA)로
+  // updateStressSummary()가 다시 실행되어 실제 API 값을 덮어쓰는 버그가 있었음
 }
 
 // ══════════════════════════════════════════════════════════
