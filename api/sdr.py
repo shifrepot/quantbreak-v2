@@ -308,6 +308,22 @@ class handler(BaseHTTPRequestHandler):
                     "n_samples":     len(Y_cut),
                     "inner_product": "⟨u,v⟩_Σ = uᵀΣv (Rᵖ(Σ) Hilbert Space)",
                 },
+                # ── 시각화용 실제 데이터 (Hilbert space canvas)
+                "viz": {
+                    # β₁, β₂ 방향 벡터 (실제 SIR 고유벡터, 5차원)
+                    # 캔버스에서는 첫 두 성분만 써서 2D로 그림
+                    "beta1": [round(float(v), 4) for v in beta1[:2]],
+                    "beta2": [round(float(v), 4) for v in beta2[:2]],
+                    # 현재 시점(가장 최근 날짜)의 실제 SIR 투영값
+                    "current_proj_x": round(float(projected[-1, 0]) * 60, 4),
+                    "current_proj_y": round(float(projected[-1, 1]) * 60, 4),
+                    # 청산 구역 경계: SIR projection 66분위수 (CRASH↔ELEVATED 경계)
+                    "crash_boundary_x": round(float(proj_q66) * 60, 4),
+                    # Σ 대각 성분 (첫 두 변수) — 타원 크기 결정용
+                    "sigma_diag": [round(float(Sigma[0,0]), 4),
+                                   round(float(Sigma[1,1]), 4),
+                                   round(float(Sigma[0,1]), 4)],
+                },
             })
 
         except Exception as e:

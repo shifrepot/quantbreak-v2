@@ -903,21 +903,6 @@ body::after {
             <div><span class="text-cyan">X₅</span> 10Y Treasury yield</div>
           </div>
 
-          <!-- GEOPOLITICAL RISK SLIDER -->
-          <div style="background:var(--bg);border:1px solid var(--line);padding:14px;">
-            <div style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;letter-spacing:1.5px;margin-bottom:10px;">GEOPOLITICAL RISK LEVEL (visual demo only)</div>
-            <input type="range" id="geo-slider" min="0" max="100" value="60"
-              oninput="onGeoSlide(this.value)"
-              style="width:100%;accent-color:var(--red);cursor:pointer;">
-            <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;margin-top:6px;">
-              <span>CALM</span><span id="geo-val" style="color:var(--red);">60</span><span>CRISIS</span>
-            </div>
-            <div style="margin-top:12px;font-size:10px;color:var(--muted);line-height:1.6;" id="geo-desc">
-              Elevated geopolitical stress — current state vector approaching liquidation zone boundary.
-            </div>
-            <div style="margin-top:6px;font-size:9px;color:var(--muted);">Moves the ✦ marker for illustration. Does not affect the actual SIR computation from real market data.</div>
-          </div>
-
           <button class="btn mt16" onclick="animateSDR()" style="width:100%;font-size:10px;" id="sdr-btn">▶ RUN SDR PROJECTION</button>
         </div>
 
@@ -1332,10 +1317,7 @@ function selectAsset(key, el){
   // reset quantum results
   document.getElementById('sdr-result').classList.add('hidden');
   sdrRevealed=false; stableCloud=[];
-  geoRisk=60;
-  const gs=document.getElementById('geo-slider'); if(gs){ gs.value=60; }
-  const gv=document.getElementById('geo-val'); if(gv) gv.textContent='60';
-  const gdesc=document.getElementById('geo-desc'); if(gdesc){ gdesc.textContent='Elevated geopolitical stress — current state vector approaching liquidation zone boundary.'; gdesc.style.color=''; }
+  window._sdrViz = null;   // 자산 바뀌면 이전 viz 데이터 초기화
   const sdrBtn=document.getElementById('sdr-btn'); if(sdrBtn){ sdrBtn.disabled=false; sdrBtn.textContent='▶ RUN SDR PROJECTION'; }
   setTimeout(()=>{ const cv=document.getElementById('sdr-cv'); if(cv) drawHilbert(0); },60);
   setText('dm-reading', 'Click "Apply Born Rule" to collapse the state and read probabilities.');
@@ -1553,51 +1535,10 @@ function makeOVChart(){
 // ══════════════════════════════════════════════════════════
 let sdrPoints   = [];
 let sdrAnimating = false;
-let geoRisk     = 60;   // 0-100
 let sdrRevealed = false;
 
-// Stable point cloud (regenerated per asset, NOT per slider move)
+// Stable point cloud (populated from real API response after SDR runs)
 let stableCloud = [];
-
-function generateCloud(){
-  stableCloud = [];
-  const clusters=[
-    {cx:-1.9, cy:-.4,  n:28, col:'#00D878', jx:.8,  jy:.7 },
-    {cx: .2,  cy: .85, n:22, col:'#F0A800', jx:.75, jy:.7 },
-    {cx: 2.1, cy:-.75, n:18, col:'#F03860', jx:.7,  jy:.65},
-  ];
-  clusters.forEach(({cx,cy,n,col,jx,jy})=>{
-    for(let i=0;i<n;i++)
-      stableCloud.push({ x:cx+(Math.random()-.5)*jx, y:cy+(Math.random()-.5)*jy, col, op:0, tOp:.55+Math.random()*.45 });
-  });
-}
-
-// Current state position driven by geo slider
-function currentStatePos(geo){
-  // At geo=0  → safe zone (-1.6, .3)
-  // At geo=50 → elevated  ( .4,  .5)
-  // At geo=100→ crash zone (1.9, -.6)
-  const t = geo/100;
-  const x = -1.6 + t*3.5;
-  const y =  .3  - t*.9;
-  return {x, y};
-}
-
-function geoLabel(geo){
-  if(geo < 25) return {txt:'Low geopolitical risk — current state deep in safe zone.', col:'var(--green)'};
-  if(geo < 50) return {txt:'Moderate risk — current state moving toward elevated cluster.', col:'var(--gold)'};
-  if(geo < 75) return {txt:'Elevated geopolitical stress — approaching liquidation zone boundary.', col:'var(--gold)'};
-  return {txt:'⚠ CRISIS LEVEL — current state vector inside crash regime. Liquidation risk extreme.', col:'var(--red)'};
-}
-
-function onGeoSlide(val){
-  geoRisk = parseInt(val);
-  setText('geo-val', val);
-  const {txt,col} = geoLabel(geoRisk);
-  const desc = document.getElementById('geo-desc');
-  desc.textContent = txt; desc.style.color = col;
-  drawHilbert(sdrRevealed ? 1 : 0); // redraw with current reveal state
-}
 
 // ── MAIN DRAW ────────────────────────────────────────────
 function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
@@ -1650,11 +1591,16 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
     return;
   }
 
-  // ── LIQUIDATION ZONE (red shaded region, right side) ─
+  // ── LIQUIDATION ZONE
+  // API 응답이 있으면 실제 SIR projection 66분위수(CRASH↔ELEVATED 경계)를 사용
+  // 없으면 하드코딩 1.2 (fallback)
+  const crashBoundary = (viz && viz.crash_boundary_x !== undefined)
+    ? viz.crash_boundary_x / 60   // sdr.py가 ×60 스케일로 줬으니 역산
+    : 1.2;
   ctx.save();
   ctx.globalAlpha = reveal * 0.13;
   ctx.fillStyle = '#F03860';
-  const liqX = toC(1.2, 0).cx;
+  const liqX = toC(crashBoundary, 0).cx;
   ctx.fillRect(liqX, 0, W - liqX, H);
   ctx.globalAlpha = reveal * 0.5;
   ctx.strokeStyle='rgba(240,56,96,.35)'; ctx.lineWidth=1.5;
@@ -1673,25 +1619,72 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
   ctx.globalAlpha = 1;
 
   // ── COVARIANCE ELLIPSES (Σ inner product geometry) ───
-  // One ellipse per cluster — represents the Σ-ball vs Euclidean ball difference
-  const ellipses = [
-    {cx:-1.9, cy:-.4,  rx:1.0,  ry:.55, rot:-0.25, col:'rgba(0,216,120,.18)',  stroke:'rgba(0,216,120,.35)'},
-    {cx: .2,  cy: .85, rx:.95,  ry:.5,  rot: 0.15, col:'rgba(240,168,0,.12)',  stroke:'rgba(240,168,0,.3)'},
-    {cx: 2.1, cy:-.75, rx:.9,   ry:.5,  rot:-0.1,  col:'rgba(240,56,96,.12)',  stroke:'rgba(240,56,96,.3)'},
+  // API 응답 후: 실제 투영된 점들의 레짐별 공분산에서 고유값분해로 타원 축/회전각 계산
+  // API 응답 전: 하드코딩 fallback
+  const ellipseDefs = [
+    {colFilter:'#00D878', col:'rgba(0,216,120,.18)',  stroke:'rgba(0,216,120,.35)',  label:'SAFE'},
+    {colFilter:'#F0A800', col:'rgba(240,168,0,.12)',  stroke:'rgba(240,168,0,.3)',   label:'ELEVATED'},
+    {colFilter:'#F03860', col:'rgba(240,56,96,.12)',  stroke:'rgba(240,56,96,.3)',   label:'CRASH'},
   ];
-  ellipses.forEach(({cx,cy,rx,ry,rot,col,stroke})=>{
-    const c = toC(cx,cy);
-    const rxPx = rx * (W-80)/7;
-    const ryPx = ry * (H-60)/3.8;
+  const fallbackEllipses = [
+    {cx:-1.9, cy:-.4,  rx:1.0, ry:.55, rot:-0.25},
+    {cx: .2,  cy: .85, rx:.95, ry:.5,  rot: 0.15},
+    {cx: 2.1, cy:-.75, rx:.9,  ry:.5,  rot:-0.1},
+  ];
+
+  // 2D 공분산에서 고유값분해 → 타원 rx, ry, 회전각 계산
+  function covEllipse(pts){
+    if(pts.length < 3) return null;
+    const mx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+    const my = pts.reduce((s,p)=>s+p.y,0)/pts.length;
+    let cxx=0, cyy=0, cxy=0;
+    pts.forEach(p=>{
+      const dx=p.x-mx, dy=p.y-my;
+      cxx+=dx*dx; cyy+=dy*dy; cxy+=dx*dy;
+    });
+    cxx/=pts.length; cyy/=pts.length; cxy/=pts.length;
+    // 2×2 공분산 행렬의 고유값
+    const trace = cxx+cyy;
+    const det   = cxx*cyy - cxy*cxy;
+    const disc  = Math.sqrt(Math.max(0,(trace/2)**2 - det));
+    const lam1  = trace/2 + disc;   // 큰 고유값
+    const lam2  = trace/2 - disc;   // 작은 고유값
+    // 회전각 (첫 고유벡터 방향)
+    const rot   = Math.atan2(lam1 - cxx, cxy);
+    // 타원 반축 = sqrt(고유값) × 2σ (95% 신뢰 타원)
+    const rx    = Math.sqrt(Math.max(lam1, 0)) * 2;
+    const ry    = Math.sqrt(Math.max(lam2, 0)) * 2;
+    return {cx:mx, cy:my, rx, ry, rot};
+  }
+
+  ellipseDefs.forEach(({colFilter, col, stroke, label}, i)=>{
+    let e;
+    if(stableCloud.length > 10){
+      // 실제 투영 점들에서 해당 레짐 점들만 추출
+      const pts = stableCloud
+        .filter(p => p.col === colFilter)
+        .map(p => ({x: p.x, y: p.y}));
+      e = covEllipse(pts);
+    }
+    // 실제 계산 실패 시 fallback
+    if(!e) e = fallbackEllipses[i];
+
+    const c = toC(e.cx, e.cy);
+    // rx, ry를 캔버스 픽셀로 변환 (data space → pixel space)
+    const rxPx = Math.min(e.rx * (W-80)/7, W*0.35);
+    const ryPx = Math.min(e.ry * (H-60)/3.8, H*0.4);
+    if(rxPx < 4 || ryPx < 4) return;  // 너무 작으면 스킵
+
     ctx.save();
     ctx.globalAlpha = reveal * 0.9;
-    ctx.translate(c.cx, c.cy); ctx.rotate(rot);
+    ctx.translate(c.cx, c.cy); ctx.rotate(e.rot);
     ctx.beginPath(); ctx.ellipse(0,0,rxPx,ryPx,0,0,Math.PI*2);
     ctx.fillStyle = col; ctx.fill();
     ctx.strokeStyle = stroke; ctx.lineWidth=1; ctx.stroke();
     ctx.restore();
     ctx.globalAlpha=1;
-    // Σ label on each ellipse
+
+    // Σ-ball 레이블
     ctx.save();
     ctx.globalAlpha = reveal * 0.5;
     ctx.font='9px Space Mono'; ctx.fillStyle='rgba(255,255,255,.4)'; ctx.textAlign='center';
@@ -1709,9 +1702,8 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
     ctx.globalAlpha=1;
   });
 
-  // ── β DIRECTION ARROWS (SDR basis vectors) ───────────
-  // β₁: dominant risk direction — tilted toward crash cluster
-  // β₂: secondary direction — orthogonal in Σ sense
+  // ── β DIRECTION ARROWS (실제 SIR 고유벡터 또는 교육용 fallback) ───
+  const viz = window._sdrViz;
   const origin = toC(0,0);
 
   const drawArrow=(x2,y2,col,lbl)=>{
@@ -1719,21 +1711,30 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
     ctx.save(); ctx.globalAlpha=reveal;
     ctx.strokeStyle=col; ctx.lineWidth=2.5;
     ctx.beginPath(); ctx.moveTo(origin.cx,origin.cy); ctx.lineTo(c2.cx,c2.cy); ctx.stroke();
-    // arrowhead
     const ang=Math.atan2(c2.cy-origin.cy,c2.cx-origin.cx);
     ctx.fillStyle=col;
     ctx.beginPath(); ctx.moveTo(c2.cx,c2.cy);
     ctx.lineTo(c2.cx-11*Math.cos(ang-.38),c2.cy-11*Math.sin(ang-.38));
     ctx.lineTo(c2.cx-11*Math.cos(ang+.38),c2.cy-11*Math.sin(ang+.38));
     ctx.closePath(); ctx.fill();
-    // label
     ctx.font='bold 10px Space Mono'; ctx.fillStyle=col; ctx.textAlign='center';
     ctx.fillText(lbl, c2.cx+16*Math.cos(ang), c2.cy+16*Math.sin(ang));
     ctx.restore(); ctx.globalAlpha=1;
   };
 
-  drawArrow( 1.6, -.5, 'rgba(0,200,240,.85)', 'β₁');
-  drawArrow(-.3,  1.2, 'rgba(144,96,240,.75)', 'β₂');
+  if(viz && viz.beta1 && Math.abs(viz.beta1[0]) + Math.abs(viz.beta1[1]) > 0.01){
+    // 실제 SIR 고유벡터 성분으로 방향 그리기 (스케일 조정)
+    const b1x =  viz.beta1[0] * 3.5;
+    const b1y = -viz.beta1[1] * 2.5;   // y축 반전 (canvas좌표계)
+    const b2x =  viz.beta2[0] * 3.0;
+    const b2y = -viz.beta2[1] * 2.0;
+    drawArrow(b1x, b1y, 'rgba(0,200,240,.85)', 'β₁');
+    drawArrow(b2x, b2y, 'rgba(144,96,240,.75)', 'β₂');
+  } else {
+    // API 응답 전 fallback: 교육용 하드코딩 방향
+    drawArrow( 1.6, -.5, 'rgba(0,200,240,.85)', 'β₁');
+    drawArrow(-.3,  1.2, 'rgba(144,96,240,.75)', 'β₂');
+  }
 
   // Σ-inner product annotation near origin
   ctx.save(); ctx.globalAlpha=reveal*.7;
@@ -1742,8 +1743,15 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
   ctx.restore(); ctx.globalAlpha=1;
 
   // ── CURRENT STATE VECTOR ──────────────────────────────
-  const pos = currentStatePos(geoRisk);
-  const {cx:nx, cy:ny} = toC(pos.x, pos.y);
+  let curX, curY;
+  if(viz && viz.current_proj_x !== undefined){
+    curX = viz.current_proj_x / 60;
+    curY = viz.current_proj_y / 60;
+  } else {
+    // SDR 실행 전 fallback: 원점 근처 (중립 위치)
+    curX = 0; curY = 0;
+  }
+  const {cx:nx, cy:ny} = toC(curX, curY);
 
   // trajectory line from origin to current state
   ctx.save(); ctx.globalAlpha=reveal*.4;
@@ -1752,7 +1760,7 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
   ctx.setLineDash([]); ctx.restore(); ctx.globalAlpha=1;
 
   // glow rings
-  const stateCol = geoRisk >= 75 ? '#F03860' : geoRisk >= 50 ? '#F0A800' : '#00D878';
+  const stateCol = curX > 1.0 ? '#F03860' : curX > 0 ? '#F0A800' : '#00D878';
   ctx.save();
   ctx.globalAlpha=reveal*.2; ctx.fillStyle=stateCol;
   ctx.beginPath(); ctx.arc(nx,ny,20,0,Math.PI*2); ctx.fill();
@@ -1765,12 +1773,6 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
   ctx.fillText('✦', nx, ny+5);
   ctx.font='bold 9px Space Mono'; ctx.fillStyle=stateCol;
   ctx.fillText('CURRENT STATE', nx, ny+22);
-  // distance from liquidation zone
-  const distLiq = Math.max(0,(1.2 - pos.x)).toFixed(2);
-  if(parseFloat(distLiq) < 0.4){
-    ctx.fillStyle='rgba(240,56,96,.8)'; ctx.font='8px Space Mono';
-    ctx.fillText('⚠ ZONE BREACH', nx, ny+34);
-  }
   ctx.globalAlpha=1;
 }
 
@@ -2714,11 +2716,11 @@ function applyRealStress(data){
     setText('avg-gbm-err',  (s.avg_bs_underestimate    != null ? s.avg_bs_underestimate    : '—')+'%p');
     setText('avg-reg-err',  (s.avg_regime_underestimate != null ? s.avg_regime_underestimate : '—')+'%p');
     setText('avg-captured', (s.avg_additional_captured  != null ? s.avg_additional_captured  : '—')+'%');
-    // events-improved: 실제 케이스에서 Tr(ρH_risk)가 GBM보다 나은 경우 카운트
+    // events-improved: additional_captured > 0이면 "Tr(ρH_risk)가 GBM보다 blind spot을 줄인" 케이스
+    // (underestimate 단순 비교는 Yen Carry처럼 실제 손실이 예측보다 작을 때 음수가 나와 의미 없어짐)
     if(data.cases){
       const improved = data.cases.filter(c =>
-        c.regime_underestimate != null && c.bs_underestimate != null &&
-        c.regime_underestimate < c.bs_underestimate
+        c.additional_captured != null && c.additional_captured > 0
       ).length;
       setText('events-improved', improved + ' / ' + data.cases.length);
     }
@@ -2931,6 +2933,11 @@ async function fetchAndApplySDR(asset){
     // it has its own button (runLiveExample) and does not read from this flow.
     if(data.risk_hamiltonian){
       window._riskWeights = data.risk_hamiltonian.weights;
+    }
+
+    // ── 시각화 실제 데이터 저장 → drawHilbert에서 사용
+    if(data.viz){
+      window._sdrViz = data.viz;
     }
 
     // ── SIR 메타 표시
