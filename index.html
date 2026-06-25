@@ -514,7 +514,7 @@ body::after {
     <div class="vs-banner">
       <div class="vs-side classical">
         <div class="vs-label red">GBM LOG-NORMAL PREDICTS</div>
-        <div class="vs-metric text-green" id="bd-gbm-crash">0.3%</div>
+        <div class="vs-metric text-green" id="bd-gbm-crash">—</div>
         <div class="vs-desc">monthly drawdown &gt;30% probability</div>
         <div class="vs-metric text-green mt16" id="bd-bs-tail">Normal</div>
         <div class="vs-desc">tail behavior — thin, symmetric (assumed)</div>
@@ -522,7 +522,7 @@ body::after {
       <div class="vs-divider">VS</div>
       <div class="vs-side quantum">
         <div class="vs-label cyan">EMPIRICAL DATA SHOWS</div>
-        <div class="vs-metric text-red" id="bd-real-crash">2.5%</div>
+        <div class="vs-metric text-red" id="bd-real-crash">—</div>
         <div class="vs-desc" id="bd-real-crash-desc">actual frequency (8.3× higher)</div>
         <div class="vs-metric text-red mt16" id="bd-real-tail">Fat Tail</div>
         <div class="vs-desc" id="bd-real-tail-desc">excess kurtosis &gt; 0 — heavier left tail than normal</div>
@@ -647,9 +647,6 @@ body::after {
           — recovering on average 49% of the blind spot that causes forced liquidations.
           In the best case (Yen Carry 2024), 89% of GBM's missed risk was recovered.
         </div>
-        <button class="btn mt16" onclick="animateStressTest()" id="stress-btn" style="font-size:10px;">
-          ▶ ANIMATE STRESS TEST
-        </button>
       </div>
 
       <!-- SECTION 1: STRESS EVENT COMPARISON -->
@@ -1402,7 +1399,7 @@ function applyAsset(){
   // placeholder: show dashes until API responds
   setText('ov-s1', d.vol);
   setText('ov-s2', d.crash);
-  setText('ov-s3', d.safeLev);
+  // ov-s3 = Current Regime, set by SDR result in fetchAndApplySDR — not safeLev
   setText('ov-asset-name2', current);
   // CLASSICAL
   setText('bs-asset', current);
@@ -2110,7 +2107,6 @@ function buildCompareTable(){
     ['Market State Model',      'Single state',                 'Density Matrix ρ — Mixed State per asset'],
     ['Risk Measure',            'GBM CVaR — single distribution','Tr(ρ·H_risk) — regime-weighted expected tail risk'],
     ['Tail Event Ratio (P(R<−15%))',  '0.3% / month (GBM estimate)',  'Actual: '+(d.crash||'8.3×')+' higher — fat tail confirmed'],
-    ['Lowest-CVaR Leverage (this asset)', '3× (product default)', d.safeLev+' minimizes Historical CVaR'],
     ['Tail Risk Reduction (this asset)',  'Not addressed',        d.cvarOpt+' CVaR ('+d.impr+' reduction)'],
     ['Cross-Asset Allocation',  'Not addressed',                'QAOA: 4 assets × 3 exposure levels, 81-combination QUBO (Tab ④)'],
     ['QAOA Role',               '—',                            'Genuine combinatorial search over risk-adjusted exposure — not claimed faster than exhaustive search at 81 combos, but the structure scales'],
@@ -2233,8 +2229,8 @@ function updateStressCards(){
       }
     }
   });
-
-  updateStressSummary(cases);
+  // Summary scoreboard는 실제 API 응답(applyRealStress)에서만 채움
+  // updateStressSummary() 제거 — 하드코딩 STRESS_DATA로 실제 API 값을 덮어쓰지 않도록
 }
 
 function updateStressSummary(cases){
@@ -2248,58 +2244,6 @@ function updateStressSummary(cases){
   setText('events-improved', improved+' / '+cases.length);
 }
 
-function animateStressTest(){
-  const btn = document.getElementById('stress-btn');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ RUNNING...'; }
-
-  const cases = getStressData();
-  const ids   = ['sc0','sc1','sc2'];
-
-  // reset all bars
-  ['sc0-gbm-bar','sc0-reg-bar','sc1-gbm-bar','sc1-reg-bar','sc2-gbm-bar','sc2-reg-bar',
-   'avg-gbm-bar','avg-reg-bar','avg-captured-bar'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.style.width='0%';
-  });
-
-  const maxRef = 100;
-
-  cases.forEach((c,i)=>{
-    const id = ids[i];
-    const bsErr  = Math.abs(c.act - c.bs);
-    const regErr = Math.abs(c.act - c.reg);
-
-    setTimeout(()=>{
-      // flash card
-      const card = document.getElementById('sc-'+i);
-      if(card){
-        card.style.transition='box-shadow .3s';
-        card.style.boxShadow='0 0 20px rgba(240,168,0,.2)';
-        setTimeout(()=>card.style.boxShadow='',800);
-      }
-      // animate underestimation bars
-      const bsBar  = document.getElementById(id+'-gbm-bar');
-      const regBar = document.getElementById(id+'-reg-bar');
-      if(bsBar)  { bsBar.style.transition='width 1s ease';  bsBar.style.width=Math.min(bsErr,100)+'%'; }
-      if(regBar) { regBar.style.transition='width 1s ease'; regBar.style.width=Math.min(regErr,100)+'%'; }
-    }, i * 800);
-  });
-
-  // summary bars
-  setTimeout(()=>{
-    const avgBs  = Math.round(cases.reduce((s,c)=>s+Math.abs(c.act-c.bs),0)/cases.length);
-    const avgReg = Math.round(cases.reduce((s,c)=>s+Math.abs(c.act-c.reg),0)/cases.length);
-    const avgCap = Math.round((avgBs-avgReg)/avgBs*100);
-
-    const bBar = document.getElementById('avg-gbm-bar');
-    const rBar = document.getElementById('avg-reg-bar');
-    const cBar = document.getElementById('avg-captured-bar');
-    if(bBar) bBar.style.width=Math.min(avgBs,100)+'%';
-    if(rBar) rBar.style.width=Math.min(avgReg,100)+'%';
-    if(cBar) cBar.style.width=Math.min(avgCap,100)+'%';
-
-    if(btn){ btn.disabled=false; btn.textContent='↺ RE-RUN ANIMATION'; }
-  }, cases.length * 800 + 500);
-}
 
 // Call on asset change to update stress cards
 function refreshStressCards(){ updateStressCards(); }
