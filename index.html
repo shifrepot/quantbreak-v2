@@ -539,27 +539,10 @@ body::after {
         <div class="card-label">VOLATILITY DECAY — 3× LEVERAGE TRAP</div>
         <div style="position:relative;" class="chart-h180">
           <canvas id="bd-decay"></canvas>
-          <!-- LIQUIDATION TRAP MARKER -->
-          <div id="liq-marker" style="
-            position:absolute; top:0; bottom:0;
-            left:38%; width:2px;
-            background:repeating-linear-gradient(to bottom,var(--red) 0px,var(--red) 6px,transparent 6px,transparent 12px);
-            pointer-events:none;
-          "></div>
-          <div id="liq-label" style="
-            position:absolute; top:8px; left:40%;
-            background:rgba(240,56,96,.13); border:1px solid rgba(240,56,96,.55);
-            padding:4px 8px; font-family:'Space Mono',monospace; font-size:9px;
-            color:var(--red); white-space:nowrap; letter-spacing:.5px;
-            animation: liq-pulse 2s ease-in-out infinite;
-          ">💥 GBM BLINDSPOT: MARGIN CALL TRIGGER</div>
-          <div id="liq-sub" style="
-            position:absolute; top:40px; left:40%;
-            font-family:'Space Mono',monospace; font-size:8px;
-            color:rgba(240,56,96,.6); white-space:nowrap;
-          ">← GBM (Log-Normal): "safe zone" &nbsp;|&nbsp; Reality: liquidation →</div>
+          <!-- Liquidation line is drawn dynamically on canvas
+               based on actual GBM CVaR from API (see rebuildChartsWithRealData) -->
         </div>
-        <p class="mt8" style="font-size:11px;color:var(--muted)">Red dashed line = estimated margin call trigger. GBM (Log-Normal) classifies everything left of this line as "safe." Actual paths cross it <span id="bd-crash-freq" class="text-red">8.3×</span> more often than the model predicts.</p>
+        <p class="mt8" style="font-size:11px;color:var(--muted)">Yellow line = GBM CVaR (5%) — the worst loss GBM predicts. Red dashed vertical = the point where the actual 3× path first crosses this level. From here, the real market loss exceeds what GBM said was the expected worst case. The <span id="bd-crash-freq" class="text-red">8.3×</span> ratio shows how often this blind spot occurs.</p>
       </div>
     </div>
 
@@ -1528,22 +1511,16 @@ function makeBDDist(){
 }
 
 function makeBDDecay(){
-  const ctx=document.getElementById('bd-decay').getContext('2d');
-  const labels=Array.from({length:100},(_,i)=>i);
-  // GBM path (no decay)
-  let vBS=100,dBS=[100];
-  for(let i=1;i<100;i++){vBS*=(1+(Math.random()-.48)*0.03);dBS.push(vBS);}
-  // actual decay path
-  let vR=100,dR=[100];
-  const mult=parseFloat(ASSETS[current].vol)/100*0.04;
-  for(let i=1;i<100;i++){
-    const r=(Math.random()-.48)*mult*3;
-    vR*=(1+r); vR*=(1-mult*mult*4.5/2); vR=Math.max(vR,2); dR.push(vR);
-  }
-  charts.bdDecay=new Chart(ctx,{type:'line',data:{labels,datasets:[
-    {data:dBS,borderColor:'rgba(0,216,120,.5)',borderDash:[4,3],borderWidth:1.5,fill:false,pointRadius:0,tension:0.2},
-    {data:dR,borderColor:'var(--red)',borderWidth:2,fill:true,backgroundColor:'rgba(240,56,96,.07)',pointRadius:0,tension:0.2}
-  ]},options:CO});
+  // 가짜 랜덤 경로 제거 — 실제 데이터(GBM CVaR + returns)가 오면
+  // rebuildChartsWithRealData()가 실제 경로 + 데이터 기반 청산선을 그림
+  const canvas = document.getElementById('bd-decay');
+  const ctx = canvas.getContext('2d');
+  if(charts.bdDecay){ charts.bdDecay.destroy(); charts.bdDecay=null; }
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(72,83,110,0.5)';
+  ctx.font = "12px 'Space Mono', monospace";
+  ctx.textAlign = 'center';
+  ctx.fillText('Loading market data...', canvas.width/2, canvas.height/2);
 }
 
 function makeCVaRChart(){
@@ -2423,6 +2400,14 @@ function rebuildChartsWithRealData(d){
   }catch(e){console.warn('bdDist:',e);}
 
   // ── 5. Volatility Decay: 실제 수익률로 1× vs 3× 복리
+  //
+  // 수평선: GBM CVaR (5%) 수준 → "GBM이 예측하는 최악의 손실"
+  // 수직선: 실제 3× 경로가 그 수준을 처음 뚫는 시점
+  //         → "GBM의 예측이 실제 데이터와 처음으로 어긋나는 지점"
+  // 라벨: "GBM Blind Spot Begins"
+  //
+  // (주의: 이건 마진콜 계산이 아님. 마진콜은 브로커 증거금 규칙으로 별도 계산해야 함.
+  //  여기서 보여주는 건 GBM CVaR라는 통계량을 실제 경로가 처음 초과하는 시점임.)
   try{
     if(charts.bdDecay) charts.bdDecay.destroy();
     const ctx2=document.getElementById('bd-decay').getContext('2d');
@@ -2433,12 +2418,76 @@ function rebuildChartsWithRealData(d){
       v1*=(1+returns[i]);      dBS2.push(Math.round(v1*100)/100);
       v3*=(1+returns[i]*3);   v3=Math.max(v3,0.1); dR2.push(Math.round(v3*100)/100);
     }
-    charts.bdDecay=new Chart(ctx2,{type:'line',data:{labels:labs,datasets:[
-      {data:dBS2,borderColor:'rgba(0,216,120,.5)',borderDash:[4,3],
-       borderWidth:1.5,fill:false,pointRadius:0,tension:0.2},
-      {data:dR2,borderColor:'var(--red)',borderWidth:2,
-       fill:true,backgroundColor:'rgba(240,56,96,.07)',pointRadius:0,tension:0.2}
-    ]},options:CO});
+
+    // GBM CVaR 기준값 (API에서 받은 실제 계산값)
+    const gbmCvarPct = d.gbm_cvar || -8;           // 음수, 예: -8.3
+    const cvarLevel  = 100 * (1 + gbmCvarPct/100); // 예: -8.3% → 91.7
+
+    // 3× 경로가 GBM CVaR 수준을 처음 뚫는 시점
+    const blindSpotIdx = dR2.findIndex(v => v <= cvarLevel);
+
+    const liqPlugin = {
+      id: 'blindSpotLine',
+      afterDraw(chart){
+        const {ctx:c, chartArea:{left,right,top,bottom}, scales:{x,y}} = chart;
+        c.save();
+
+        // 수평선: GBM CVaR 수준 (이게 GBM의 예측 최악값)
+        const yPx = y.getPixelForValue(cvarLevel);
+        c.setLineDash([5,3]);
+        c.strokeStyle = 'rgba(240,168,0,.6)';
+        c.lineWidth = 1.2;
+        c.beginPath(); c.moveTo(left,yPx); c.lineTo(right,yPx); c.stroke();
+
+        // 수평선 라벨 (왼쪽 끝)
+        c.font = "8px 'Space Mono'";
+        c.fillStyle = 'rgba(240,168,0,.8)';
+        c.textAlign = 'left';
+        c.fillText(`GBM CVaR (5%) = ${gbmCvarPct.toFixed(1)}%`, left+4, yPx-4);
+
+        // 수직선: 3× 경로가 CVaR 수준을 처음 뚫는 시점
+        if(blindSpotIdx >= 0){
+          const xPx = x.getPixelForValue(blindSpotIdx);
+          c.setLineDash([6,4]);
+          c.strokeStyle = 'rgba(240,56,96,.9)';
+          c.lineWidth = 1.8;
+          c.beginPath(); c.moveTo(xPx,top); c.lineTo(xPx,bottom); c.stroke();
+          c.setLineDash([]);
+
+          // 레이블 박스
+          const lbl = '⚠ GBM Blind Spot Begins';
+          c.font = "bold 9px 'Space Mono'";
+          const tw = c.measureText(lbl).width;
+          const bx = Math.min(xPx+6, right-tw-12);
+          c.fillStyle = 'rgba(240,56,96,.13)';
+          c.strokeStyle = 'rgba(240,56,96,.55)';
+          c.lineWidth = 1;
+          c.fillRect(bx, top+6, tw+10, 20);
+          c.strokeRect(bx, top+6, tw+10, 20);
+          c.fillStyle = 'rgba(240,56,96,.95)';
+          c.fillText(lbl, bx+5, top+20);
+
+          // sub 텍스트
+          c.font = "8px 'Space Mono'";
+          c.fillStyle = 'rgba(240,56,96,.55)';
+          c.textAlign = 'left';
+          c.fillText('Historical loss exceeds GBM CVaR from here', xPx+6, top+36);
+        }
+        c.restore();
+      }
+    };
+
+    charts.bdDecay=new Chart(ctx2,{
+      type:'line',
+      data:{labels:labs,datasets:[
+        {data:dBS2,borderColor:'rgba(0,216,120,.5)',borderDash:[4,3],
+         borderWidth:1.5,fill:false,pointRadius:0,tension:0.2},
+        {data:dR2,borderColor:'var(--red)',borderWidth:2,
+         fill:true,backgroundColor:'rgba(240,56,96,.07)',pointRadius:0,tension:0.2}
+      ]},
+      options:CO,
+      plugins:[liqPlugin]
+    });
   }catch(e){console.warn('bdDecay:',e);}
 
   // ── 6. CVaR 분포: 실제 수익률 히스토그램 + 5% 꼬리
