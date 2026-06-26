@@ -43,12 +43,13 @@ def fetch_yahoo(sym, days=140):
         raise ValueError(f"Not enough data: {len(prices)}")
     return prices
 
-def compute_asset_risk(asset_sym, mkt_cols, days=140):
+def compute_asset_risk(asset_sym, mkt_cols, days=140, prefetched=None):
     """
     개별 자산에 대해:
     SDR(SIR) → Density Matrix(레짐확률) → Born Rule → Risk Hamiltonian → Tr(ρH_risk)
+    prefetched: 이미 병렬로 받아온 자산 가격 (None이면 직접 fetch)
     """
-    asset_prices = fetch_yahoo(asset_sym, days=days)
+    asset_prices = prefetched if prefetched and len(prefetched) > 20 else fetch_yahoo(asset_sym, days=days)
     horizon = 20
     Y = np.array([
         min(asset_prices[t+1:t+horizon+1]) / asset_prices[t] - 1
@@ -324,13 +325,26 @@ class handler(BaseHTTPRequestHandler):
             qs      = parse_qs(urlparse(self.path).query)
             backend = qs.get("backend", ["numpy"])[0].lower()
 
-            # ── 시장 변수 (공통, 한 번만 fetch)
-            mkt_cols = []
-            for mkt_sym in MARKET_TICKERS:
+            # ── 시장 변수 + 자산 가격 병렬 fetch
+            # 순차 최대 9×6초=54초 → 병렬 약 6초
+            all_syms = list(MARKET_TICKERS) + [info["sym"] for info in PORTFOLIO_ASSETS.values()]
+
+            def fetch_one(sym):
                 try:
-                    mkt_cols.append(fetch_yahoo(mkt_sym, days=140))
+                    return sym, fetch_yahoo(sym, days=140)
                 except Exception:
-                    continue
+                    return sym, None
+
+            fetch_results = {}
+            with __import__('concurrent.futures', fromlist=['ThreadPoolExecutor', 'as_completed']).ThreadPoolExecutor(max_workers=9) as ex:
+                from concurrent.futures import as_completed as _ac
+                futs = {ex.submit(fetch_one, s): s for s in all_syms}
+                for fut in _ac(futs, timeout=14):
+                    sym, data = fut.result()
+                    if data and len(data) > 20:
+                        fetch_results[sym] = data
+
+            mkt_cols = [fetch_results[s] for s in MARKET_TICKERS if fetch_results.get(s)]
             if len(mkt_cols) < 2:
                 raise ValueError("Not enough market data")
 
@@ -338,7 +352,10 @@ class handler(BaseHTTPRequestHandler):
             asset_results = {}
             for name, info in PORTFOLIO_ASSETS.items():
                 try:
-                    asset_results[name] = compute_asset_risk(info["sym"], mkt_cols, days=140)
+                    asset_results[name] = compute_asset_risk(
+                        info["sym"], mkt_cols, days=140,
+                        prefetched=fetch_results.get(info["sym"])
+                    )
                 except Exception as e:
                     asset_results[name] = {"error": str(e)}
 

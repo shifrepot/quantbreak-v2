@@ -4,6 +4,7 @@ from scipy.linalg import eigh, cholesky
 from urllib.parse import urlparse, parse_qs
 import urllib.request, time
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TICKER_MAP = {
     "TQQQ": "TQQQ", "SOXL": "SOXL", "SQQQ": "SQQQ",
@@ -107,10 +108,28 @@ class handler(BaseHTTPRequestHandler):
         sym   = TICKER_MAP.get(asset, asset)
 
         try:
-            # ── 자산 가격
-            asset_prices = fetch_yahoo(sym, days=140)
-            if len(asset_prices) < 40:
-                raise ValueError(f"Not enough asset data: {len(asset_prices)}")
+            # ── 모든 Yahoo Finance fetch를 병렬 실행 (순차 최대 36초 → 병렬 약 6초)
+            all_tickers = [(sym, 140)] + [(t, 140) for t in MARKET_TICKERS]
+            fetch_results = {}
+
+            def fetch_one(args):
+                ticker, d = args
+                try:
+                    return ticker, fetch_yahoo(ticker, days=d)
+                except Exception:
+                    return ticker, None
+
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                futures = {executor.submit(fetch_one, args): args[0]
+                           for args in all_tickers}
+                for future in as_completed(futures, timeout=12):
+                    ticker, data = future.result()
+                    if data and len(data) > 20:
+                        fetch_results[ticker] = data
+
+            asset_prices = fetch_results.get(sym)
+            if not asset_prices or len(asset_prices) < 40:
+                raise ValueError(f"Not enough asset data for {sym}")
 
             # ── Y = 미래 20일 forward maximum drawdown
             horizon = 20
@@ -119,14 +138,12 @@ class handler(BaseHTTPRequestHandler):
                 for t in range(len(asset_prices) - horizon)
             ])
 
-            # ── 시장 변수 X
+            # ── 시장 변수 X (병렬 fetch 결과 사용)
             mkt_cols = []
             for mkt_sym in MARKET_TICKERS:
-                try:
-                    mp = fetch_yahoo(mkt_sym, days=140)
+                mp = fetch_results.get(mkt_sym)
+                if mp and len(mp) > 20:
                     mkt_cols.append(mp)
-                except Exception:
-                    continue
 
             if len(mkt_cols) < 2:
                 raise ValueError("Not enough market data")
@@ -211,10 +228,9 @@ class handler(BaseHTTPRequestHandler):
             p_elev  = round(float(np.sum(regime_labels==1)) / total_proj, 4)
             p_safe  = round(float(np.sum(regime_labels==2)) / total_proj, 4)
 
-            # ── Density Matrix
-            # 대각항: 실제 레짐 확률 (SIR projection 기준)
-            # 비대각항: 실제 레짐 전환 빈도 (coherence)
-            # crash(0) ↔ safe(2) 전환 빈도
+            # ── Density Matrix (혼합 상태, mixed state)
+            # 대각항: SIR projection으로 계산한 실제 레짐 확률
+            # 비대각항: crash↔safe 레짐 전환 빈도 (coherence)
             transitions_cs = sum(
                 1 for i in range(len(regime_labels)-1)
                 if (regime_labels[i]==0 and regime_labels[i+1]==2) or
