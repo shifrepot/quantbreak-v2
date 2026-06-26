@@ -392,6 +392,7 @@ body::after {
     <button class="tab-btn" onclick="switchTab('breakdown',this)">② Where It Breaks</button>
     <button class="tab-btn" onclick="switchTab('quantum',this)">③ Quantum Analysis</button>
     <button class="tab-btn" onclick="switchTab('recommendation',this)">④ Recommendation</button>
+    <button class="tab-btn" onclick="switchTab('glossary',this)" style="color:var(--muted);">📖 용어 사전</button>
     <div class="topbar-right">
       <div class="live-badge"><div class="live-dot"></div>LIVE (15m delay)</div>
       <button class="btn" onclick="refreshData()" style="font-size:10px;padding:6px 14px;">↻ REFRESH</button>
@@ -1622,6 +1623,185 @@ body::after {
       <div id="positions-list" style="display:flex;flex-direction:column;gap:10px;">
         <div style="font-size:11px;color:var(--muted);">Click REFRESH to load saved positions.</div>
       </div>
+    </div>
+  </div>
+
+  <!-- 용어 사전 탭 -->
+  <div class="panel" id="tab-glossary" style="display:none;">
+    <div style="max-width:860px;margin:0 auto;padding:8px 0 48px;">
+
+      <div style="margin-bottom:32px;">
+        <h2 style="font-size:22px;font-weight:800;margin-bottom:6px;">📖 용어 사전</h2>
+        <p style="font-size:13px;color:var(--muted);">이 앱에서 사용되는 주요 용어를 쉽게 정리했습니다.</p>
+      </div>
+
+      <!-- 카테고리: 금융 리스크 -->
+      <div style="margin-bottom:36px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--line);">금융 · 리스크</div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">GBM</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Geometric Brownian Motion. 주가가 정규분포를 따라 움직인다고 가정하는 전통적 금융 모델. Black-Scholes 옵션 공식의 기반이 되는 모형이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">CVaR</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Conditional Value at Risk. 가장 나쁜 5% 상황에서의 평균 손실. "최악의 상황에서 얼마나 잃는가"를 나타내는 리스크 지표. Expected Shortfall(ES)이라고도 한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">Fat Tail</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">정규분포보다 극단적 사건이 더 자주 발생하는 분포의 특성. 금융 시장에서 대형 폭락이 GBM 예측보다 훨씬 자주 일어나는 현상을 설명한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">Excess Kurtosis</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">분포의 꼬리 두께를 나타내는 통계량. 정규분포는 0. 0보다 크면 Fat Tail(극단값이 정규분포보다 자주 발생), 0보다 작으면 Thin Tail이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">Volatility Decay</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">레버리지 ETF에서 매일 리밸런싱으로 인해 변동성이 쌓일수록 수익률이 비선형적으로 감소하는 현상. 3배 레버리지가 장기적으로 기초자산의 3배 수익을 내지 못하는 이유.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">Regime (레짐)</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">시장의 상태 구간. 이 앱에서는 CRASH(위기), ELEVATED(위험 상승), SAFE(안정)의 세 레짐으로 분류한다. 레짐마다 자산의 위험과 수익 특성이 다르다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">Tail Event Ratio</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">실제 극단적 손실 발생 빈도를 GBM 예측 확률로 나눈 값. 8.3×이면 GBM이 예측한 것보다 8.3배 더 자주 극단적 손실이 발생했다는 뜻이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--cyan);border-right:1px solid var(--line);">GBM Blind Spot</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">GBM이 안전하다고 분류하지만 실제로는 위험한 구간. Volatility Decay 차트에서 실제 3배 레버리지 경로가 GBM CVaR 수준을 처음 돌파하는 시점이 Blind Spot의 시작이다.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 카테고리: 통계 방법론 -->
+      <div style="margin-bottom:36px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--line);">통계 방법론</div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--green);border-right:1px solid var(--line);">SDR</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Sufficient Dimension Reduction. 고차원 데이터를 목표 변수(Y)와의 관계를 유지하면서 저차원으로 줄이는 통계 방법론의 총칭. SIR이 SDR의 대표적 구현 방법이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--green);border-right:1px solid var(--line);">SIR</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Sliced Inverse Regression (Li, 1991). 5개 시장변수를 "미래 위험(Y)을 가장 잘 설명하는 1개 방향(β₁)"으로 압축하는 알고리즘. Y를 구간으로 나눠 각 구간의 X 평균에서 방향을 추출한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--green);border-right:1px solid var(--line);">β₁ (베타1)</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">SIR이 찾아낸 1번째 위험 방향 벡터. 5차원 시장변수(VIX·SPY·TLT·GLD·금리)를 이 방향으로 투영하면 미래 위험과 가장 상관관계가 높은 1차원 값이 나온다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--green);border-right:1px solid var(--line);">Hilbert Space Rᵖ(Σ)</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">시장 공분산 행렬 Σ로 내적을 정의한 수학적 공간. ⟨u,v⟩ = uᵀΣv. 변수 간 상관관계를 반영한 "거리"를 사용해 SIR이 위험 방향을 추출하는 공간이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--green);border-right:1px solid var(--line);">Forward Drawdown</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">특정 시점 이후 일정 기간 동안 발생한 최대 낙폭. 이 앱에서 Y는 20일 forward drawdown, 즉 "오늘 이후 20 거래일 안에 발생할 수 있는 최악의 손실"로 정의된다.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 카테고리: 양자 개념 -->
+      <div style="margin-bottom:36px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--line);">양자 개념</div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Density Matrix ρ</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">양자 시스템의 상태를 확률적으로 표현하는 행렬. 이 앱에서는 시장이 CRASH / ELEVATED / SAFE 레짐에 각각 어떤 확률로 있는지를 행렬로 표현한다. 대각 원소 = 레짐 확률.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Mixed State</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">여러 상태가 확률적으로 섞인 상태. GBM이 "시장은 하나의 상태"라고 보는 것과 달리, 이 앱은 시장이 CRASH·ELEVATED·SAFE 레짐의 혼합 상태에 있다고 본다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Born Rule</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">양자 측정의 기본 원리. 어떤 상태를 측정했을 때 특정 결과가 나올 확률은 P(i) = Tr(Πᵢ·ρ). 이 앱에서는 Density Matrix에서 레짐 확률을 읽는 과정에 해당한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Hamiltonian</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">양자역학에서 시스템의 에너지를 나타내는 연산자. 이 앱의 Risk Hamiltonian H_risk = diag(CVaR)는 각 레짐의 꼬리위험을 대각 원소로 갖는 행렬이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Tr(ρH_risk)</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Density Matrix와 Risk Hamiltonian의 trace(대각합). 레짐 확률로 가중평균한 기대 꼬리위험. Σᵢ pᵢ·CVaRᵢ와 동일하며 QAOA 비용함수의 핵심 입력값이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Bra-Ket 표기</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">양자역학의 벡터 표기법. |crash⟩는 "CRASH 레짐 상태 벡터", ⟨crash|는 그 켤레 벡터. |crash⟩⟨crash|는 두 벡터의 외적으로 Density Matrix의 각 항을 구성한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Qubit</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">양자 컴퓨터의 기본 정보 단위. 고전 컴퓨터의 bit(0 또는 1)와 달리 0과 1의 중첩 상태를 가질 수 있다. 이 앱에서는 12 qubit로 81개 포트폴리오 조합을 동시에 탐색한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Hadamard Gate</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">모든 가능한 상태를 동일한 확률로 중첩시키는 양자 게이트. QAOA 시작 시 12개 qubit에 각각 적용해 4096개 포트폴리오 조합 모두를 동시에 탐색하는 초기 상태를 만든다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--purple);border-right:1px solid var(--line);">Phase Kickback</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">QAOA에서 비용 Hamiltonian을 적용하는 과정. 각 포트폴리오 조합에 비용에 비례한 위상을 부여한다. 비용이 낮은 조합과 높은 조합의 위상이 달라져 이후 Mixer를 통한 간섭이 가능해진다.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 카테고리: 최적화 -->
+      <div style="margin-bottom:36px;">
+        <div style="font-family:'Space Mono',monospace;font-size:9px;letter-spacing:3px;color:var(--gold);margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--line);">최적화</div>
+        <div style="display:flex;flex-direction:column;gap:1px;">
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);border-right:1px solid var(--line);">QUBO</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Quadratic Unconstrained Binary Optimization. 이진변수(0 또는 1)로 구성된 이차 목적함수를 최소화하는 문제. 양자 컴퓨터가 native하게 풀 수 있는 형식이다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);border-right:1px solid var(--line);">QAOA</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">Quantum Approximate Optimization Algorithm. QUBO를 양자 변분 회로로 근사 최적해를 찾는 알고리즘. Phase kickback(비용 적용)과 Mixer(탐색)를 반복해 낮은 비용 상태의 확률을 높인다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);border-right:1px solid var(--line);">One-Hot 인코딩</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">여러 선택지 중 하나만 1로 표시하는 이진 인코딩 방식. High/Medium/Low의 삼진 선택을 [1,0,0], [0,1,0], [0,0,1] 형태의 이진벡터로 변환해 QUBO에 사용한다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);border-right:1px solid var(--line);">변분 알고리즘</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">파라미터(γ, β)를 바꿔가며 목적함수를 최소화하는 방식. QAOA는 파라미터 조합마다 양자 회로를 실행하고 에너지 기대값을 계산해 최적 파라미터를 찾는다.</div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:200px 1fr;border:1px solid var(--line);">
+            <div style="padding:14px 16px;background:var(--bg2);font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--gold);border-right:1px solid var(--line);">Exposure (노출)</div>
+            <div style="padding:14px 16px;font-size:12px;color:var(--dim);line-height:1.7;">특정 자산에 투자하는 비중. High=100%, Medium=50%, Low=15%. QAOA가 각 자산별로 최적 노출 수준을 결정한다.</div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   </div>
 
