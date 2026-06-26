@@ -626,8 +626,7 @@ body::after {
           <div style="font-size:12px;color:var(--dim);line-height:1.8;">
             <strong style="color:var(--text);">이 탭의 목적:</strong> 4개 자산(TQQQ·SOXL·WTI·NG) 각각에 대해 독립적으로 전체 파이프라인을 재실행하고, QAOA로 최적 노출 레벨을 결정합니다.<br>
             <strong style="color:var(--text);">노출 레벨:</strong> High(100%) / Medium(50%) / Low(15%) 중 자산별로 하나 선택<br>
-            <strong style="color:var(--text);">강제청산 기준:</strong> 실제 레버리지 ETF 특성 반영 — threshold = -50% / risk_mult (TQQQ: -27.8%, SOXL: -25.0%)<br>
-            <strong style="color:var(--text);">Paper Trading:</strong> SAVE AS PAPER POSITION 버튼으로 실제 진입가 기록 후 향후 손익 추적 가능
+            <strong style="color:var(--text);">강제청산 기준:</strong> 실제 레버리지 ETF 특성 반영 — threshold = -50% / risk_mult (TQQQ: -27.8%, SOXL: -25.0%)
           </div>
           <div style="text-align:right;font-size:11px;color:var(--muted);">RUN QAOA 버튼<br>/api/portfolio</div>
         </div>
@@ -1543,10 +1542,6 @@ body::after {
         <div id="allocation-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;">
           <!-- filled by JS -->
         </div>
-        <div style="margin-bottom:20px;">
-          <button class="btn" onclick="savePaperPosition()" id="save-position-btn" style="font-size:10px;background:var(--bg);border:1px solid var(--green);color:var(--green);">💾 SAVE AS PAPER POSITION</button>
-          <span id="save-position-status" style="font-size:10px;color:var(--muted);margin-left:10px;"></span>
-        </div>
         <div class="grid2">
           <div>
             <div class="mono" style="font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:10px;">COURSE CONCEPTS APPLIED</div>
@@ -1607,23 +1602,6 @@ body::after {
       </table>
     </div>
 
-    <!-- PAPER TRADING TRACK RECORD -->
-    <div class="card mt16">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div class="card-label" style="margin-bottom:0;">📊 PAPER TRADING TRACK RECORD</div>
-        <button class="btn" onclick="loadPaperPositions()" id="refresh-positions-btn" style="font-size:9px;">↻ REFRESH</button>
-      </div>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.6;">
-        Each saved position records the QAOA-recommended allocation at that moment, with entry prices
-        fetched live. Liquidation threshold scales inversely with each asset's risk_mult — more leveraged
-        assets (higher risk_mult) get liquidated at a smaller loss, matching how leveraged ETFs actually behave:
-        <span class="mono" style="color:var(--gold);">threshold = −50% / risk_mult</span>
-        → TQQQ −27.8%, SOXL −25.0%, WTI −50.0%, NG −33.3%.
-      </p>
-      <div id="positions-list" style="display:flex;flex-direction:column;gap:10px;">
-        <div style="font-size:11px;color:var(--muted);">Click REFRESH to load saved positions.</div>
-      </div>
-    </div>
   </div>
 
   <!-- 용어 사전 탭 -->
@@ -3324,95 +3302,6 @@ function applyRealStress(data){
 // LIVE EXAMPLE (Tab ②, Validation) — independent of Tab ③.
 // Calls /api/sdr and /api/analysis directly for the current asset.
 // Does NOT depend on whether Tab ③'s SDR has been run.
-// ══════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════
-// PAPER TRADING — save QAOA allocation as a tracked position,
-// and check saved positions against live prices for liquidation.
-// ══════════════════════════════════════════════════════════
-async function savePaperPosition(){
-  const btn    = document.getElementById('save-position-btn');
-  const status = document.getElementById('save-position-status');
-  const data = window._portfolioData;
-  if(!data || !data.recommended_allocation){
-    status.textContent = '⚠ Run QAOA first.';
-    status.style.color = 'var(--red)';
-    return;
-  }
-
-  btn.disabled = true; btn.textContent = '⏳ SAVING...';
-  status.textContent = 'Fetching live entry prices...';
-  status.style.color = 'var(--muted)';
-
-  try {
-    const res = await fetch(`${API_BASE}/api/positions`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({allocation: data.recommended_allocation})
-    });
-    const result = await res.json();
-    if(result.error) throw new Error(result.error);
-
-    status.textContent = `✓ Saved (id: ${result.position_id})`;
-    status.style.color = 'var(--green)';
-    btn.textContent = '💾 SAVE AS PAPER POSITION';
-    loadPaperPositions();   // 저장 즉시 트랙레코드도 갱신
-  } catch(e){
-    status.textContent = `⚠ Failed: ${e.message}`;
-    status.style.color = 'var(--red)';
-    btn.textContent = '💾 SAVE AS PAPER POSITION';
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-async function loadPaperPositions(){
-  const listEl = document.getElementById('positions-list');
-  const btn = document.getElementById('refresh-positions-btn');
-  btn.disabled = true; btn.textContent = '⏳ LOADING...';
-  listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">Loading...</div>';
-
-  try {
-    const res = await fetch(`${API_BASE}/api/positions`);
-    const data = await res.json();
-    if(data.error) throw new Error(data.error);
-
-    if(!data.positions || data.positions.length === 0){
-      listEl.innerHTML = '<div style="font-size:11px;color:var(--muted);">No positions saved yet. Run QAOA and click SAVE AS PAPER POSITION.</div>';
-    } else {
-      listEl.innerHTML = data.positions.map(p => {
-        const date = new Date(p.created_at*1000).toLocaleString();
-        const portfolioColor = p.portfolio_status === 'LIQUIDATED' ? 'var(--red)' : 'var(--green)';
-        const rows = Object.entries(p.entries).map(([asset, e]) => {
-          if(e.error) return `<div style="font-size:10px;color:var(--muted);">${asset}: ${e.error}</div>`;
-          const statusColor = e.status === 'LIQUIDATED' ? 'var(--red)' : 'var(--green)';
-          const pnlColor = e.weighted_pnl_pct >= 0 ? 'var(--green)' : 'var(--red)';
-          return `
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:6px;font-size:10px;font-family:'Space Mono',monospace;padding:4px 0;border-bottom:1px solid var(--line);align-items:center;">
-              <span>${asset} (${e.level})</span>
-              <span style="color:var(--muted);">$${e.entry_price} → $${e.current_price}</span>
-              <span style="color:${pnlColor};">${e.weighted_pnl_pct>=0?'+':''}${e.weighted_pnl_pct}%</span>
-              <span style="color:var(--muted);">thresh ${e.liq_threshold_pct}%</span>
-              <span style="color:${statusColor};font-weight:700;">${e.status}</span>
-            </div>`;
-        }).join('');
-        return `
-          <div style="background:var(--bg);border:1px solid ${portfolioColor};border-left:3px solid ${portfolioColor};padding:12px 14px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;">${date} · id=${p.id}</span>
-              <span style="font-size:10px;font-weight:700;color:${portfolioColor};font-family:'Space Mono',monospace;">${p.portfolio_status}</span>
-            </div>
-            ${rows}
-          </div>`;
-      }).join('');
-    }
-  } catch(e){
-    listEl.innerHTML = `<div style="font-size:11px;color:var(--red);">⚠ Could not load positions: ${e.message}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '↻ REFRESH';
-  }
-}
-
 async function runLiveExample(){
   const btn    = document.getElementById('live-example-btn');
   const status = document.getElementById('live-example-status');
