@@ -24,11 +24,44 @@ def fetch_yahoo(sym, days=140):
         "User-Agent": "Mozilla/5.0",
         "Accept": "application/json",
     })
-    with urllib.request.urlopen(req, timeout=6) as resp:
+    with urllib.request.urlopen(req, timeout=7) as resp:
         data = json.loads(resp.read())
     result = data["chart"]["result"][0]
     closes = result["indicators"]["quote"][0]["close"]
     return [c for c in closes if c is not None]
+
+def fetch_yahoo_batch(syms, days=140):
+    """
+    여러 ticker를 Yahoo Finance spark API로 한 번에 fetch.
+    단일 HTTP 요청으로 여러 자산 데이터 수신 → 횟수 6번→2번으로 감소.
+    """
+    end   = int(time.time())
+    start = int((datetime.utcnow() - timedelta(days=days)).timestamp())
+    symbols = ",".join(syms)
+    url = (
+        f"https://query1.finance.yahoo.com/v7/finance/spark"
+        f"?symbols={symbols}&range=6mo&interval=1d"
+    )
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=7) as resp:
+            data = json.loads(resp.read())
+        result = {}
+        spark = data.get("spark", {}).get("result", []) or []
+        for item in spark:
+            sym = item.get("symbol")
+            resp_data = item.get("response", [])
+            if resp_data:
+                closes = resp_data[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
+                closes = [c for c in closes if c is not None]
+                if closes:
+                    result[sym] = closes
+        return result
+    except Exception:
+        return {}
 
 def compute_sir(X, Y, h=8):
     """
@@ -108,26 +141,9 @@ class handler(BaseHTTPRequestHandler):
         sym   = TICKER_MAP.get(asset, asset)
 
         try:
-            # ── 모든 Yahoo Finance fetch를 병렬 실행 (순차 최대 36초 → 병렬 약 6초)
-            all_tickers = [(sym, 140)] + [(t, 140) for t in MARKET_TICKERS]
-            fetch_results = {}
-
-            def fetch_one(args):
-                ticker, d = args
-                try:
-                    return ticker, fetch_yahoo(ticker, days=d)
-                except Exception:
-                    return ticker, None
-
-            with ThreadPoolExecutor(max_workers=6) as executor:
-                futures = {executor.submit(fetch_one, args): args[0]
-                           for args in all_tickers}
-                for future in as_completed(futures, timeout=12):
-                    ticker, data = future.result()
-                    if data and len(data) > 20:
-                        fetch_results[ticker] = data
-
-            asset_prices = fetch_results.get(sym)
+            # ── fetch: 자산 1번 + 시장변수 5개 묶음 1번 = 총 2번 요청
+            # 무료 Vercel 10초 제한 안에 맞추기 위해 배치 fetch 사용
+            asset_prices = fetch_yahoo(sym, 140)
             if not asset_prices or len(asset_prices) < 40:
                 raise ValueError(f"Not enough asset data for {sym}")
 
@@ -138,12 +154,24 @@ class handler(BaseHTTPRequestHandler):
                 for t in range(len(asset_prices) - horizon)
             ])
 
-            # ── 시장 변수 X (병렬 fetch 결과 사용)
+            # 시장변수 5개 배치 fetch (1번 요청)
+            batch = fetch_yahoo_batch(MARKET_TICKERS, days=140)
             mkt_cols = []
             for mkt_sym in MARKET_TICKERS:
-                mp = fetch_results.get(mkt_sym)
+                mp = batch.get(mkt_sym)
                 if mp and len(mp) > 20:
                     mkt_cols.append(mp)
+
+            # 배치 실패 시 개별 fetch fallback
+            if len(mkt_cols) < 2:
+                mkt_cols = []
+                for mkt_sym in MARKET_TICKERS:
+                    try:
+                        mp = fetch_yahoo(mkt_sym, 140)
+                        if mp and len(mp) > 20:
+                            mkt_cols.append(mp)
+                    except Exception:
+                        continue
 
             if len(mkt_cols) < 2:
                 raise ValueError("Not enough market data")

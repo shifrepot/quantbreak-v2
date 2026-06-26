@@ -4,6 +4,11 @@
     { "src": "api/*.py",   "use": "@vercel/python" },
     { "src": "index.html", "use": "@vercel/static"  }
   ],
+  "functions": {
+    "api/sdr.py":       { "maxDuration": 60 },
+    "api/portfolio.py": { "maxDuration": 60 },
+    "api/stress.py":    { "maxDuration": 30 }
+  },
   "routes": [
     { "src": "/api/price",    "dest": "/api/price.py"    },
     { "src": "/api/analysis", "dest": "/api/analysis.py" },
@@ -11,6 +16,7 @@
     { "src": "/api/qaoa",     "dest": "/api/qaoa.py"     },
     { "src": "/api/portfolio","dest": "/api/portfolio.py"},
     { "src": "/api/stress",   "dest": "/api/stress.py"   },
+    { "src": "/api/positions","dest": "/api/positions.py"},
     { "src": "/(.*)",         "dest": "/index.html"      }
   ]
 }
