@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QuantBreak — Quantum Risk Engine</title>
+<title>Q-Reg — Quantum Risk Engine</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap');
@@ -301,7 +301,7 @@ body::after {
 
 <!-- ── SIDEBAR ───────────────────────────────────────────── -->
 <aside class="sidebar">
-  <div class="sb-logo">Quant<span>Break</span><small>QUANTUM RISK ENGINE v1</small></div>
+  <div class="sb-logo">Q<span>-Reg</span><small>QUANTUM RISK ENGINE v1</small></div>
 
   <div class="sb-section">LEVERAGED ETF</div>
   <div class="sb-asset active" onclick="selectAsset('TQQQ',this)">
@@ -386,7 +386,7 @@ body::after {
 <!-- ── MAIN ──────────────────────────────────────────────── -->
 <main class="main">
   <div class="topbar">
-    <button class="tab-btn active" onclick="switchTab('guide-kr',this)" style="color:var(--gold);border-bottom-color:var(--gold);">🇰🇷 연구 가이드</button>
+    <button class="tab-btn active" onclick="switchTab('guide-kr',this)" style="color:var(--gold);border-bottom-color:var(--gold);">🇰🇷 앱 가이드</button>
     <button class="tab-btn" onclick="switchTab('overview',this)">Overview</button>
     <button class="tab-btn" onclick="switchTab('classical',this)">① GBM Risk Model</button>
     <button class="tab-btn" onclick="switchTab('breakdown',this)">② Where It Breaks</button>
@@ -406,7 +406,7 @@ body::after {
 
     <!-- HERO HEADER -->
     <div style="text-align:center;padding:48px 24px 32px;border-bottom:1px solid var(--line);margin-bottom:40px;">
-      <h1 style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:12px;">QuantBreak</h1>
+      <h1 style="font-size:36px;font-weight:800;letter-spacing:-1px;margin-bottom:12px;">Q-Reg</h1>
       <div style="font-size:18px;color:var(--muted);margin-bottom:20px;">양자 통계 파이프라인 기반 다중 자산 리스크 배분 시스템</div>
       <div style="display:inline-block;background:rgba(0,200,240,.08);border:1px solid rgba(0,200,240,.25);padding:10px 24px;font-size:13px;color:var(--cyan);">
         GBM의 Fat Tail 과소평가 문제 → SDR + Density Matrix + QAOA로 해결
@@ -635,7 +635,134 @@ body::after {
 
     <!-- 섹션 4: 핵심 주장 요약 -->
     <div style="background:linear-gradient(135deg,rgba(0,200,240,.04),rgba(144,96,240,.04));border:1px solid rgba(0,200,240,.2);padding:32px;margin-bottom:40px;">
-      <div style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:20px;">04 · 연구의 핵심 주장</div>
+    <!-- 섹션 4: QAOA 파이프라인 상세 플로우 -->
+    <div style="margin-bottom:56px;">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:24px;">04 · QAOA 최적화 파이프라인</div>
+
+      <!-- 플로우 스텝 -->
+      <div style="display:flex;flex-direction:column;gap:0;">
+
+        <!-- Step A -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:0;border:1px solid var(--line);">
+          <div style="background:rgba(0,200,240,.06);border-right:1px solid var(--line);padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+            <div style="font-size:9px;color:var(--cyan);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:8px;">STEP A</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:6px;">포트폴리오<br>배분 문제</div>
+            <div style="font-size:20px;margin-top:4px;">📋</div>
+          </div>
+          <div style="padding:20px 24px;">
+            <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;">Problem Definition</div>
+            <div style="font-size:12px;color:var(--dim);line-height:1.8;">4개 자산(TQQQ · SOXL · WTI · NG) 각각에 대해 노출 수준을 결정한다. 단순히 위험만 최소화하면 항상 모든 자산에 Low(최소 비중)만 선택되는 trivial solution이 나온다. 수익 항을 추가해 위험-수익 트레이드오프를 만든다.</div>
+            <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+              cost(a,l) = <span style="color:var(--red);">risk_mult × |Tr(ρH_risk)| × exposure</span> − <span style="color:var(--green);">Tr(ρH_return) × 21 × exposure</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;padding:6px 0;color:var(--muted);font-size:18px;">↓</div>
+
+        <!-- Step B -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:0;border:1px solid var(--line);">
+          <div style="background:rgba(0,200,240,.06);border-right:1px solid var(--line);padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+            <div style="font-size:9px;color:var(--cyan);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:8px;">STEP B</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:6px;">One-Hot<br>이진 인코딩</div>
+            <div style="font-size:20px;margin-top:4px;">🔢</div>
+          </div>
+          <div style="padding:20px 24px;">
+            <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;">Binary Encoding</div>
+            <div style="font-size:12px;color:var(--dim);line-height:1.8;">High/Medium/Low의 삼진 선택을 QUBO가 요구하는 이진변수로 변환한다. 자산별로 세 개 이진변수 중 정확히 하나만 1이 되는 one-hot 인코딩을 사용한다.</div>
+            <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+              x ∈ {0,1}¹² &nbsp;&nbsp; (4자산 × 3레벨 = <span style="color:var(--cyan);">12개 이진변수</span>)<br>
+              <span style="color:var(--muted);">TQQQ: [x_High, x_Med, x_Low] 중 정확히 하나만 1</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;padding:6px 0;color:var(--muted);font-size:18px;">↓</div>
+
+        <!-- Step C -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:0;border:1px solid var(--line);">
+          <div style="background:rgba(240,168,0,.06);border-right:1px solid var(--line);padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+            <div style="font-size:9px;color:var(--gold);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:8px;">STEP C</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:6px;">패널티 항<br>흡수 → QUBO</div>
+            <div style="font-size:20px;margin-top:4px;">⚙️</div>
+          </div>
+          <div style="padding:20px 24px;">
+            <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;">QUBO Formulation</div>
+            <div style="font-size:12px;color:var(--dim);line-height:1.8;">one-hot 제약 조건을 패널티 항으로 목적함수 안에 흡수시킨다. 이로써 제약 없는 이진 이차 최적화(QUBO) 형식이 완성된다. 3⁴ = 81개의 유효 조합이 탐색 대상이 된다.</div>
+            <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+              H_cost = Σ cost(a,l)·x<sub>a,l</sub> + <span style="color:var(--gold);">A·Σ_a(Σ_l x<sub>a,l</sub> − 1)²</span><br>
+              <span style="color:var(--muted);">= minimize x<sup>T</sup>Qx &nbsp; (QUBO 형식, A=5.0)</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;padding:6px 0;color:var(--muted);font-size:18px;">↓</div>
+
+        <!-- Step D -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:0;border:1px solid var(--line);">
+          <div style="background:rgba(240,168,0,.06);border-right:1px solid var(--line);padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+            <div style="font-size:9px;color:var(--gold);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:8px;">STEP D</div>
+            <div style="font-size:13px;font-weight:700;margin-bottom:6px;">Cost<br>Hamiltonian</div>
+            <div style="font-size:20px;margin-top:4px;">🧮</div>
+          </div>
+          <div style="padding:20px 24px;">
+            <div style="font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:10px;">Quantum Encoding</div>
+            <div style="font-size:12px;color:var(--dim);line-height:1.8;">QUBO를 대각 Cost Hamiltonian으로 인코딩한다. 각 이진 비트스트링 |x⟩가 H_C의 고유벡터이고, 그 비용값이 고유값이 된다. 4096차원 힐베르트 공간의 대각 원소 벡터로 표현한다.</div>
+            <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);">
+              H_C|x⟩ = cost_diag[x]·|x⟩<br>
+              <span style="color:var(--muted);">dim = 2¹² = 4096 &nbsp;&nbsp; 각 |x⟩ = H_C의 고유벡터</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;padding:6px 0;color:var(--muted);font-size:18px;">↓</div>
+
+        <!-- Step E -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:0;border:1px solid var(--purple);background:rgba(144,96,240,.04);">
+          <div style="background:rgba(144,96,240,.1);border-right:1px solid var(--purple);padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+            <div style="font-size:9px;color:var(--purple);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:8px;">STEP E</div>
+            <div style="font-size:13px;font-weight:700;color:var(--purple);margin-bottom:6px;">QAOA<br>변분 회로</div>
+            <div style="font-size:20px;margin-top:4px;">🔮</div>
+          </div>
+          <div style="padding:20px 24px;">
+            <div style="font-size:11px;color:var(--purple);font-family:'Space Mono',monospace;margin-bottom:10px;">QAOA Variational Circuit (p=2)</div>
+            <div style="font-size:12px;color:var(--dim);line-height:1.8;">균등 중첩에서 출발해 Phase kickback과 RX Mixer를 2층 반복한다. Phase kickback은 비용이 낮은 상태와 높은 상태의 위상을 다르게 만들고, Mixer를 통한 간섭으로 낮은 비용 상태의 확률진폭이 증폭된다. 3×3 그리드 서치로 최적 (γ,β) 탐색.</div>
+            <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:10px;line-height:2;">
+              <span style="color:var(--cyan);">|ψ₀⟩ = H⊗¹²|0⟩¹²</span> &nbsp;&nbsp; <span style="color:var(--muted);">// 균등 중첩</span><br>
+              <span style="color:var(--red);">e^{-iγH_C}|ψ⟩</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--muted);">// Phase kickback</span><br>
+              <span style="color:var(--green);">e^{-iβH_M}|ψ⟩</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span style="color:var(--muted);">// RX Mixer</span><br>
+              E(γ,β) = ⟨ψ|H_C|ψ⟩ → minimize
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;padding:6px 0;color:var(--muted);font-size:18px;">↓</div>
+
+        <!-- Step F -->
+        <div style="display:grid;grid-template-columns:180px 1fr;gap:0;border:1px solid var(--green);background:rgba(0,216,120,.04);">
+          <div style="background:rgba(0,216,120,.1);border-right:1px solid var(--green);padding:20px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;">
+            <div style="font-size:9px;color:var(--green);font-family:'Space Mono',monospace;letter-spacing:2px;margin-bottom:8px;">결과</div>
+            <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:6px;">최적<br>포트폴리오 배분</div>
+            <div style="font-size:20px;margin-top:4px;">📊</div>
+          </div>
+          <div style="padding:20px 24px;">
+            <div style="font-size:11px;color:var(--green);font-family:'Space Mono',monospace;margin-bottom:10px;">Measurement → Optimal Allocation</div>
+            <div style="font-size:12px;color:var(--dim);line-height:1.8;">최종 상태를 측정해 각 비트스트링의 확률분포를 얻는다. one-hot 제약을 만족하는 유효 상태 중 가장 높은 확률의 상태가 최적 배분이 된다.</div>
+            <div style="margin-top:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--text);display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+              <div>TQQQ → <span style="color:var(--red);">Low (15%)</span></div>
+              <div>SOXL → <span style="color:var(--red);">Low (15%)</span></div>
+              <div>WTI &nbsp;→ <span style="color:var(--green);">High (100%)</span></div>
+              <div>NG &nbsp;&nbsp;→ <span style="color:var(--gold);">Medium (50%)</span></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 섹션 5: 핵심 주장 요약 -->
+    <div style="background:linear-gradient(135deg,rgba(0,200,240,.04),rgba(144,96,240,.04));border:1px solid rgba(0,200,240,.2);padding:32px;margin-bottom:40px;">
+      <div style="font-family:'Space Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--gold);margin-bottom:20px;">05 · 연구의 핵심 주장</div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:24px;">
         <div>
           <div style="font-size:13px;font-weight:700;color:var(--red);margin-bottom:8px;">❌ GBM의 한계</div>
@@ -670,7 +797,7 @@ body::after {
 
     <!-- Footer -->
     <div style="text-align:center;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);padding:24px;border-top:1px solid var(--line);">
-      QuantBreak · SDR (Li 1991) + Density Matrix + QAOA Pipeline<br>
+      Q-Reg · SDR (Li 1991) + Density Matrix + QAOA Pipeline<br>
       Data: Yahoo Finance API · Backend: Vercel Python Serverless · Frontend: Vanilla JS + Chart.js
     </div>
 
@@ -1464,13 +1591,13 @@ body::after {
 
     <!-- comparison table -->
     <div class="card">
-      <div class="card-label">GBM vs QUANTBREAK — FINAL COMPARISON</div>
+      <div class="card-label">GBM vs Q-REG — FINAL COMPARISON</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead>
           <tr style="border-bottom:1px solid var(--line);">
             <th style="text-align:left;padding:10px 12px;font-size:10px;color:var(--muted);font-weight:500;font-family:'Space Mono',monospace;letter-spacing:1px;">DIMENSION</th>
             <th style="text-align:center;padding:10px 12px;font-size:10px;color:var(--red);font-family:'Space Mono',monospace;letter-spacing:1px;">GBM LOG-NORMAL</th>
-            <th style="text-align:center;padding:10px 12px;font-size:10px;color:var(--cyan);font-family:'Space Mono',monospace;letter-spacing:1px;">QUANTBREAK</th>
+            <th style="text-align:center;padding:10px 12px;font-size:10px;color:var(--cyan);font-family:'Space Mono',monospace;letter-spacing:1px;">Q-REG</th>
           </tr>
         </thead>
         <tbody id="compare-table">
