@@ -2146,6 +2146,8 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
   ctx.fillText('β₂  —  Liquidity Direction  (SDR Basis 2)', 0, 0);
   ctx.restore();
 
+  const viz = window._sdrViz;
+
   if(reveal < 0.05){
     // Just show empty axes + label explaining what will appear
     ctx.fillStyle='rgba(72,83,110,.4)'; ctx.font='11px Space Mono'; ctx.textAlign='center';
@@ -2266,7 +2268,6 @@ function drawHilbert(reveal){ // reveal: 0=empty axes only, 0.5=partial, 1=full
   });
 
   // ── β DIRECTION ARROWS (실제 SIR 고유벡터 또는 교육용 fallback) ───
-  const viz = window._sdrViz;
   const origin = toC(0,0);
 
   const drawArrow=(x2,y2,col,lbl)=>{
@@ -3343,25 +3344,36 @@ async function runLiveExample(){
 
 async function fetchAndApplySDR(asset){
   try{
-    // ── sdr_viz 먼저 (빠름 ~4초) — 그래프 먼저 표시
-    // sdr는 독립적으로 호출, 응답 오면 레짐/CVaR 업데이트
-    const vizPromise = fetch(`${API_BASE}/api/sdr_viz?asset=${asset}`)
-      .then(r=>r.json()).catch(()=>({ok:false}));
-    const sdrPromise = fetch(`${API_BASE}/api/sdr?asset=${asset}`)
-      .then(r=>r.json()).catch(e=>({error:e.message}));
+    // timeout 헬퍼: ms 이후 {error:'timeout'} 반환
+    const withTimeout = (promise, ms) =>
+      Promise.race([promise, new Promise(res=>setTimeout(()=>res({error:'timeout'}), ms))]);
 
-    // sdr_viz 먼저 await (빠름)
-    const vizData = await vizPromise;
-    if(vizData.ok && vizData.points){
+    // sdr_viz는 선택적(파일 없으면 404) — 5초 안에 실패해도 계속 진행
+    const vizPromise = withTimeout(
+      fetch(`${API_BASE}/api/sdr_viz?asset=${asset}`)
+        .then(r=>r.ok ? r.json() : {ok:false})
+        .catch(()=>({ok:false})),
+      5000
+    );
+
+    // sdr 메인 호출 — 15초 타임아웃
+    const sdrPromise = withTimeout(
+      fetch(`${API_BASE}/api/sdr?asset=${asset}`)
+        .then(r=>r.json())
+        .catch(e=>({error:e.message})),
+      15000
+    );
+
+    // 두 요청 병렬 실행 — sdr_viz 실패해도 무시하고 sdr 결과로 진행
+    const [vizData, data] = await Promise.all([vizPromise, sdrPromise]);
+
+    if(vizData && vizData.ok && vizData.points){
       stableCloud = vizData.points.map(p=>({
         x: p.x, y: p.y, col: p.col,
         op: 0, tOp: 0.6+Math.random()*0.4
       }));
       if(vizData.viz) window._sdrViz = vizData.viz;
     }
-
-    // sdr 응답 await (느림 — 이미 병렬로 실행 중이라 sdr_viz 끝난 후 남은 시간만 기다림)
-    const data = await sdrPromise;
     if(data.error) throw new Error(data.error);
 
     if(ASSETS[asset]){
