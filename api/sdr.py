@@ -4,7 +4,6 @@ from scipy.linalg import eigh, cholesky
 from urllib.parse import urlparse, parse_qs
 import urllib.request, time
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TICKER_MAP = {
     "TQQQ": "TQQQ", "SOXL": "SOXL", "SQQQ": "SQQQ",
@@ -156,8 +155,8 @@ class handler(BaseHTTPRequestHandler):
 
             # 시장변수 5개 배치 fetch (1번 요청, spark API)
             batch = fetch_yahoo_batch(MARKET_TICKERS, days=140)
-            mkt_cols = [batch[s] for s in MARKET_TICKERS
-                        if batch.get(s) and len(batch[s]) > 20]
+            mkt_cols = [batch.get(s) for s in MARKET_TICKERS
+                        if batch.get(s) and len(batch.get(s)) > 20]
 
             if len(mkt_cols) < 2:
                 raise ValueError("Market data unavailable. Please try again.")

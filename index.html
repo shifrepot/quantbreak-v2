@@ -403,7 +403,7 @@ body::after {
   <!-- ══════════════════════════════════════════════════════ -->
   <!-- 한국어 연구 가이드 탭                                  -->
   <!-- ══════════════════════════════════════════════════════ -->
-  <div class="panel" id="tab-guide-kr">
+  <div class="panel" id="tab-guide-kr" style="display:block;">
 
     <!-- HERO HEADER -->
     <div style="text-align:center;padding:48px 24px 32px;border-bottom:1px solid var(--line);margin-bottom:40px;">
@@ -2345,12 +2345,12 @@ async function animateSDR(){
   if(sdrAnimating) return;
   sdrAnimating=true;
 
-  // 실제 SDR API 시도 — 실패 시 generateCloud() fallback
+  // 실제 SDR API 시도 — 실패 시 빈 cloud로 fallback
   const btn=document.getElementById('sdr-btn');
   if(btn){ btn.disabled=true; btn.textContent='⏳ PROJECTING...'; }
 
   const realSDR = await fetchAndApplySDR(current);
-  if(!realSDR) generateCloud();
+  if(!realSDR) stableCloud = []; // generateCloud 제거됨 — 빈 상태로
 
   let frame=0, total=70;
   function tick(){
@@ -3345,16 +3345,15 @@ async function runLiveExample(){
 
 async function fetchAndApplySDR(asset){
   try{
-    // ── 두 API를 동시에 호출
-    // sdr_viz: 시각화 전용 (3변수, 60일) — 빠름 (~4초), 그래프용 points
-    // sdr:     실제 계산 (5변수, 140일) — 느림, 레짐확률/CVaR/DensityMatrix
-    const [vizRes, sdrRes] = await Promise.all([
-      fetch(`${API_BASE}/api/sdr_viz?asset=${asset}`),
-      fetch(`${API_BASE}/api/sdr?asset=${asset}`)
-    ]);
+    // ── sdr_viz 먼저 (빠름 ~4초) — 그래프 먼저 표시
+    // sdr는 독립적으로 호출, 응답 오면 레짐/CVaR 업데이트
+    const vizPromise = fetch(`${API_BASE}/api/sdr_viz?asset=${asset}`)
+      .then(r=>r.json()).catch(()=>({ok:false}));
+    const sdrPromise = fetch(`${API_BASE}/api/sdr?asset=${asset}`)
+      .then(r=>r.json()).catch(e=>({error:e.message}));
 
-    // ── 시각화 데이터 먼저 적용 (빠르게 그래프 표시)
-    const vizData = await vizRes.json();
+    // sdr_viz 먼저 await (빠름)
+    const vizData = await vizPromise;
     if(vizData.ok && vizData.points){
       stableCloud = vizData.points.map(p=>({
         x: p.x, y: p.y, col: p.col,
@@ -3363,8 +3362,8 @@ async function fetchAndApplySDR(asset){
       if(vizData.viz) window._sdrViz = vizData.viz;
     }
 
-    // ── 실제 계산 데이터 적용
-    const data = await sdrRes.json();
+    // sdr 응답 await (느림 — 이미 병렬로 실행 중이라 sdr_viz 끝난 후 남은 시간만 기다림)
+    const data = await sdrPromise;
     if(data.error) throw new Error(data.error);
 
     if(ASSETS[asset]){
@@ -3446,14 +3445,18 @@ async function fetchAndApplySDR(asset){
 // TABS
 // ══════════════════════════════════════════════════════════
 function switchTab(id, btn){
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('visible'));
+  document.querySelectorAll('.panel').forEach(p=>{
+    p.style.display = 'none';
+    p.classList.remove('visible');
+  });
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('tab-'+id).classList.add('visible');
-  btn.classList.add('active');
+  const target = document.getElementById('tab-'+id);
+  if(target){ target.style.display = 'block'; target.classList.add('visible'); }
+  if(btn) btn.classList.add('active');
   if(id==='quantum') setTimeout(()=>{ drawHilbert(sdrRevealed?1:0); },60);
 }
-// 초기 탭: 한국어 가이드
-document.getElementById('tab-guide-kr').classList.add('visible');
+// 초기 탭 설정: guide-kr은 HTML에서 이미 display:block
+// 다른 패널들은 CSS .panel { display:none } 으로 숨겨져 있음
 </script>
 </body>
 </html>
