@@ -21,6 +21,8 @@ TICKER_MAP = {
 # 시각화 전용: 핵심 3개 변수만 (fetch 시간 단축)
 VIZ_MARKET = ["^VIX", "SPY", "TLT"]
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 def fetch_yahoo(sym, days=60):
     end   = int(time.time())
     start = int((datetime.utcnow() - timedelta(days=days)).timestamp())
@@ -28,10 +30,23 @@ def fetch_yahoo(sym, days=60):
              f"?interval=1d&period1={start}&period2={end}")
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=4) as resp:
+    with urllib.request.urlopen(req, timeout=6) as resp:
         data = json.loads(resp.read())
     closes = data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
     return [c for c in closes if c is not None]
+
+def fetch_parallel(syms, days=60):
+    """여러 심볼을 병렬로 fetch — 총 소요시간 ≈ 가장 느린 1개"""
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(syms)) as ex:
+        futures = {ex.submit(fetch_yahoo, s, days): s for s in syms}
+        for f in as_completed(futures, timeout=7):
+            s = futures[f]
+            try:
+                results[s] = f.result()
+            except Exception:
+                pass
+    return results
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -40,8 +55,11 @@ class handler(BaseHTTPRequestHandler):
         sym   = TICKER_MAP.get(asset, asset)
 
         try:
-            # 자산 + 시장변수 3개 fetch (총 4번, ~4초)
-            asset_prices = fetch_yahoo(sym, 60)
+            # 자산 + 시장변수 3개 병렬 fetch (총 소요시간 ≈ 가장 느린 1개)
+            all_syms = [sym] + VIZ_MARKET
+            fetched = fetch_parallel(all_syms, days=60)
+
+            asset_prices = fetched.get(sym)
             if not asset_prices or len(asset_prices) < 30:
                 raise ValueError("Not enough data")
 
@@ -51,14 +69,8 @@ class handler(BaseHTTPRequestHandler):
                 for t in range(len(asset_prices) - horizon)
             ])
 
-            mkt_cols = []
-            for mkt_sym in VIZ_MARKET:
-                try:
-                    mp = fetch_yahoo(mkt_sym, 60)
-                    if mp and len(mp) > 20:
-                        mkt_cols.append(mp)
-                except Exception:
-                    continue
+            mkt_cols = [fetched[s] for s in VIZ_MARKET
+                        if fetched.get(s) and len(fetched.get(s)) > 20]
 
             if len(mkt_cols) < 2:
                 raise ValueError("Market data unavailable")

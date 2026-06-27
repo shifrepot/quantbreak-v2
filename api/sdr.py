@@ -4,6 +4,7 @@ from scipy.linalg import eigh, cholesky
 from urllib.parse import urlparse, parse_qs
 import urllib.request, time
 from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 TICKER_MAP = {
     "TQQQ": "TQQQ", "SOXL": "SOXL", "SQQQ": "SQQQ",
@@ -61,6 +62,19 @@ def fetch_yahoo_batch(syms, days=140):
         return result
     except Exception:
         return {}
+
+def fetch_parallel(syms, days=140):
+    """여러 심볼을 병렬로 fetch — 총 소요시간 ≈ 가장 느린 1개"""
+    results = {}
+    with ThreadPoolExecutor(max_workers=len(syms)) as ex:
+        futures = {ex.submit(fetch_yahoo, s, days): s for s in syms}
+        for f in as_completed(futures, timeout=8):
+            s = futures[f]
+            try:
+                results[s] = f.result()
+            except Exception:
+                pass
+    return results
 
 def compute_sir(X, Y, h=8):
     """
@@ -140,9 +154,11 @@ class handler(BaseHTTPRequestHandler):
         sym   = TICKER_MAP.get(asset, asset)
 
         try:
-            # ── fetch: 자산 1번(v8) + 시장변수 5개 묶음 1번(spark) = 총 2번 요청
-            # fallback 개별 fetch 제거 — 배치 실패 시 즉시 에러 반환 (10초 초과 방지)
-            asset_prices = fetch_yahoo(sym, 140)
+            # ── 자산 + 시장변수 6개 병렬 fetch (총 소요시간 ≈ 가장 느린 1개, ~3-4초)
+            all_syms = [sym] + MARKET_TICKERS
+            fetched  = fetch_parallel(all_syms, days=140)
+
+            asset_prices = fetched.get(sym)
             if not asset_prices or len(asset_prices) < 40:
                 raise ValueError(f"Not enough asset data for {sym}")
 
@@ -153,10 +169,8 @@ class handler(BaseHTTPRequestHandler):
                 for t in range(len(asset_prices) - horizon)
             ])
 
-            # 시장변수 5개 배치 fetch (1번 요청, spark API)
-            batch = fetch_yahoo_batch(MARKET_TICKERS, days=140)
-            mkt_cols = [batch.get(s) for s in MARKET_TICKERS
-                        if batch.get(s) and len(batch.get(s)) > 20]
+            mkt_cols = [fetched[s] for s in MARKET_TICKERS
+                        if fetched.get(s) and len(fetched.get(s)) > 20]
 
             if len(mkt_cols) < 2:
                 raise ValueError("Market data unavailable. Please try again.")
