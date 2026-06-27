@@ -1438,10 +1438,12 @@ body::after {
       <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">
         Using regime probabilities from Born Rule above, we compute a
         <strong class="text-gold">Regime-Weighted Risk Score</strong> —
-        a summary of current tail risk that reflects the regime composition of the market.
-        This is <em>not</em> claimed to be more accurate than Historical CVaR.
-        Rather, it encodes <strong>how much the current regime structure amplifies tail risk</strong>
-        relative to a baseline. The score feeds into QAOA as a regime-aware signal.
+        Tr(ρH_risk) = Σᵢ pᵢ·CVaRᵢ, the HMM-weighted average of per-regime Historical CVaRs.
+        This is <em>not</em> claimed to be more accurate than a flat Historical CVaR.
+        Rather, it reflects <strong>which regime the market is currently in</strong> —
+        if HMM assigns high p_crash, the score skews toward crash-regime CVaR;
+        if p_safe dominates, it skews toward the safe-regime CVaR.
+        The score feeds into QAOA as a regime-aware signal.
         GBM vs Historical CVaR comparison is shown in Tab ②.
       </p>
       <div class="chart-h180"><canvas id="cvar-chart"></canvas></div>
@@ -1455,7 +1457,7 @@ body::after {
           <div style="font-size:10px;color:var(--gold);font-family:'Space Mono',monospace;margin-bottom:6px;">REGIME-WEIGHTED RISK SCORE</div>
           <div class="mono" style="font-size:18px;font-weight:700;color:var(--gold)" id="cvar-hist">−37%</div>
           <div style="font-size:11px;color:var(--muted);">
-            Reflects current regime composition from SDR.<br>
+            HMM-weighted average of per-regime Historical CVaRs (SIR + HMM).<br>
             <span id="regime-weight-label">p_crash·CVaR_crash + p_elev·CVaR_elev + p_safe·CVaR_safe</span><br>
             <span style="color:var(--muted);font-size:10px;">Internal signal — not a prediction. Feeds QAOA objective.</span>
           </div>
@@ -1466,7 +1468,7 @@ body::after {
       </div>
       <div class="eq mt16">
         CVaR^{GBM}    = μ - σ·φ(z_α)/α &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">// baseline: normal distribution</span><br>
-        Tr(ρH_risk) = Σᵢ pᵢ·CVaRᵢ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">// regime-weighted risk score: pᵢ from Born Rule</span><br>
+        Tr(ρH_risk) = Σᵢ pᵢ·CVaRᵢ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="c">// pᵢ from HMM via Born Rule — reflects current regime, not uniform 33:33:34</span><br>
         → used in Tab ④: cost(a,l) = risk_mult·|Tr(ρH_risk)|·exp(l) − Tr(ρH_return)·exp(l) &nbsp;<span class="c">// QUBO cost term</span>
       </div>
     </div>
