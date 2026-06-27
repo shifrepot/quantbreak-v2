@@ -4,6 +4,11 @@ from scipy.linalg import eigh
 from urllib.parse import urlparse, parse_qs
 import urllib.request, time
 from datetime import datetime, timedelta
+try:
+    from hmmlearn.hmm import GaussianHMM
+    HMM_AVAILABLE = True
+except ImportError:
+    HMM_AVAILABLE = False
 
 # qiskit-aer는 선택적 의존성 (Vercel 서버리스 패키지 용량 제한 때문에
 # 배포 환경에 따라 import가 실패할 수 있음 — 실패 시 numpy 백엔드로 자동 fallback)
@@ -42,6 +47,51 @@ def fetch_yahoo(sym, days=140):
     if len(prices) < 20:
         raise ValueError(f"Not enough data: {len(prices)}")
     return prices
+
+
+def fit_hmm_regimes(proj1):
+    """
+    HMM으로 SIR projection 시계열에서 3개 레짐을 추정.
+    분위수 균등분할(항상 33:33:34) 대신 데이터가 실제로
+    어느 상태에 있었는지 학습 → 시장 상황에 따라 p_crash가 달라짐.
+    """
+    seq = proj1.reshape(-1, 1)
+    n = len(seq)
+    if HMM_AVAILABLE and n >= 30:
+        try:
+            model = GaussianHMM(
+                n_components=3, covariance_type="full",
+                n_iter=200, random_state=42, tol=1e-4,
+            )
+            model.fit(seq)
+            labels = model.predict(seq)
+            means = np.array([seq[labels == i].mean() if (labels == i).sum() > 0 else 0.0
+                              for i in range(3)])
+            order = np.argsort(means)
+            remap = {order[0]: 0, order[1]: 1, order[2]: 2}
+            regime_labels = np.array([remap[l] for l in labels])
+            recent = regime_labels[-5:]
+            cur = int(np.argmax(np.bincount(recent, minlength=3)))
+            total = len(regime_labels)
+            return (regime_labels,
+                    float(np.sum(regime_labels==0))/total,
+                    float(np.sum(regime_labels==1))/total,
+                    float(np.sum(regime_labels==2))/total,
+                    cur, "HMM")
+        except Exception:
+            pass
+    # Fallback
+    lo = float(np.percentile(proj1, 20))
+    hi = float(np.percentile(proj1, 70))
+    regime_labels = np.where(proj1<=lo, 0, np.where(proj1<=hi, 1, 2))
+    total = len(regime_labels)
+    recent = regime_labels[-5:]
+    cur = int(np.argmax(np.bincount(recent, minlength=3)))
+    return (regime_labels,
+            float(np.sum(regime_labels==0))/total,
+            float(np.sum(regime_labels==1))/total,
+            float(np.sum(regime_labels==2))/total,
+            cur, "percentile-fallback")
 
 def compute_asset_risk(asset_sym, mkt_cols, days=140, prefetched=None):
     """
@@ -94,19 +144,10 @@ def compute_asset_risk(asset_sym, mkt_cols, days=140, prefetched=None):
         beta1 = -beta1
         projection = -projection
 
-    # 레짐 분류: SIR 투영값(현재 관측 가능한 시장변수 X의 투영) 기준
-    # (Y_cut은 미래 20일 결과이므로 "지금" 레짐 판단에는 쓸 수 없음 —
-    #  SIR이 학습한 방향 beta1을 통해 X만으로 레짐을 분류해야 SIR이 실제로 쓰이게 됨)
-    proj_q33 = float(np.percentile(projection, 33))
-    proj_q66 = float(np.percentile(projection, 66))
-    # projection이 클수록 위험(crash)이 큰 방향이 되도록 부호를 맞췄으므로
-    # 분위수 기준도 Y와 같은 방향: 낮은 projection = crash, 높은 projection = safe
-    regime_labels = np.where(projection<=proj_q33, 0, np.where(projection<=proj_q66, 1, 2))
-
-    total = len(regime_labels)
-    p_crash = float(np.sum(regime_labels==0)) / total
-    p_elev  = float(np.sum(regime_labels==1)) / total
-    p_safe  = float(np.sum(regime_labels==2)) / total
+    # ── HMM 레짐 분류 (분위수 균등분할 대체)
+    # SIR projection에 GaussianHMM(3 states) 적합
+    # → 시장 상황에 따라 p_crash가 실제로 달라짐
+    regime_labels, p_crash, p_elev, p_safe, cur_regime_idx, regime_method =         fit_hmm_regimes(projection)
 
     asset_returns = np.array([
         (asset_prices[i]-asset_prices[i-1])/asset_prices[i-1]
@@ -140,8 +181,8 @@ def compute_asset_risk(asset_sym, mkt_cols, days=140, prefetched=None):
     # "지금" 레짐: 가장 최근 시점의 SIR 투영값이 어느 구간에 속하는지로 판단
     # (이전에는 미래값인 Y_cut[-5:]를 썼는데, 이건 룩어헤드라 잘못된 설계였음.
     #  지금은 현재 시점에 실제로 관측 가능한 projection[-5:]을 사용)
-    recent_proj = float(projection[-5:].mean())
-    regime = "CRASH" if recent_proj<=proj_q33 else ("ELEVATED" if recent_proj<=proj_q66 else "SAFE")
+    regime_names = ["CRASH", "ELEVATED", "SAFE"]
+    regime = regime_names[cur_regime_idx]
 
     return {
         "p_crash": p_crash, "p_elev": p_elev, "p_safe": p_safe,

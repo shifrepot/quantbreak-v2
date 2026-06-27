@@ -435,7 +435,7 @@ body::after {
           <div style="font-size:11px;color:var(--cyan);font-family:'Space Mono',monospace;margin-bottom:8px;">STEP 2</div>
           <div style="font-size:20px;margin-bottom:8px;">🔬</div>
           <div style="font-size:13px;font-weight:700;margin-bottom:6px;">SIR (SDR)</div>
-          <div style="font-size:10px;color:var(--muted);line-height:1.6;">5차원→1차원 위험 방향 β₁ 추출<br>레짐 분류 p_crash / p_elev / p_safe</div>
+          <div style="font-size:10px;color:var(--muted);line-height:1.6;">5차원→1차원 위험 방향 β₁ 추출<br>HMM으로 레짐 분류 p_crash / p_elev / p_safe</div>
         </div>
         <div style="flex-shrink:0;color:var(--muted);font-size:20px;padding:0 8px;">→</div>
 
@@ -480,7 +480,8 @@ body::after {
         <div style="color:var(--cyan);margin-bottom:12px;font-size:11px;letter-spacing:2px;">핵심 수식 흐름</div>
         <div><span style="color:var(--muted);">// Step 2: SIR (SDR) — Y(위험)와 공분산 구조를 반영한 저차원 방향 추출</span></div>
         <div>β₁ = <span style="color:var(--cyan);">eigenvec</span>(Σ⁻¹M), &nbsp; projection = X<span style="color:var(--gold);">·</span>β₁</div>
-        <div style="margin-top:8px;"><span style="color:var(--muted);">// Step 3: 레짐 확률로 Density Matrix 구성 (각 레짐 = Hilbert Space 직교 기저)</span></div>
+        <div style="margin-top:8px;"><span style="color:var(--muted);">// Step 2b: GaussianHMM(3 states)을 projection에 적합 → 레짐 확률 추정 (분위수 균등분할 대체)</span></div>
+        <div style="margin-top:4px;"><span style="color:var(--muted);">// Step 3: 레짐 확률로 Density Matrix 구성 (각 레짐 = Hilbert Space 직교 기저)</span></div>
         <div>ρ = p_crash<span style="color:var(--gold);">|</span>crash<span style="color:var(--gold);">⟩⟨</span>crash<span style="color:var(--gold);">|</span> + p_elev<span style="color:var(--gold);">|</span>elev<span style="color:var(--gold);">⟩⟨</span>elev<span style="color:var(--gold);">|</span> + p_safe<span style="color:var(--gold);">|</span>safe<span style="color:var(--gold);">⟩⟨</span>safe<span style="color:var(--gold);">|</span></div>
         <div style="margin-top:8px;"><span style="color:var(--muted);">// Step 4: Born Rule 측정 → Risk Hamiltonian 기대값</span></div>
         <div>H_risk = <span style="color:var(--gold);">diag</span>(CVaR_crash, CVaR_elev, CVaR_safe)</div>
@@ -512,7 +513,7 @@ body::after {
           <div style="font-size:13px;font-weight:700;color:var(--gold);margin-bottom:4px;">Density Matrix ρ</div>
           <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;margin-bottom:16px;">시장 레짐 혼합 상태 (Mixed State)</div>
           <div style="font-size:12px;color:var(--dim);line-height:1.8;">
-            GBM은 레짐 전환을 명시적으로 모델링하지 않습니다. Density Matrix는 시장을 CRASH / ELEVATED / SAFE 세 레짐의 확률적 혼합 상태(mixed state)로 표현합니다. 각 레짐은 Hilbert Space의 직교 기저로 정의되며, 대각 원소는 SIR이 추정한 실제 레짐 확률입니다. 본 연구에서는 레짐 간 coherence는 가정하지 않습니다.<br><br>
+            GBM은 레짐 전환을 명시적으로 모델링하지 않습니다. Density Matrix는 시장을 CRASH / ELEVATED / SAFE 세 레짐의 확률적 혼합 상태(mixed state)로 표현합니다. 각 레짐은 Hilbert Space의 직교 기저로 정의되며, 대각 원소는 <strong style="color:var(--cyan);">SIR projection에 GaussianHMM(3 states)을 적합하여 추정한 레짐 확률</strong>입니다. 분위수 균등분할(항상 33:33:34)과 달리, HMM은 시장이 실제로 어느 상태에 머물렀는지를 데이터에서 학습하므로 p_crash가 시장 상황에 따라 실제로 달라집니다. 본 연구에서는 레짐 간 coherence는 가정하지 않습니다.<br><br>
             ρ = p_crash|crash⟩⟨crash| + p_elev|elev⟩⟨elev| + p_safe|safe⟩⟨safe|
           </div>
         </div>

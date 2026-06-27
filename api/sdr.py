@@ -5,6 +5,11 @@ from urllib.parse import urlparse, parse_qs
 import urllib.request, time
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
+try:
+    from hmmlearn.hmm import GaussianHMM
+    HMM_AVAILABLE = True
+except ImportError:
+    HMM_AVAILABLE = False
 
 TICKER_MAP = {
     "TQQQ": "TQQQ", "SOXL": "SOXL", "SQQQ": "SQQQ",
@@ -62,6 +67,64 @@ def fetch_yahoo_batch(syms, days=140):
         return result
     except Exception:
         return {}
+
+
+def fit_hmm_regimes(proj1):
+    """
+    HMM으로 SIR projection 시계열에서 3개 레짐을 추정.
+    - 분위수 균등 분할(항상 33:33:34) 대신 데이터가 실제로 어느 상태에 있었는지 학습
+    - 출력: regime_labels(0=crash,1=elev,2=safe), p_crash, p_elev, p_safe
+    - hmmlearn 없으면 절대값 임계값 fallback 사용
+    """
+    seq = proj1.reshape(-1, 1)
+    n = len(seq)
+
+    if HMM_AVAILABLE and n >= 30:
+        try:
+            model = GaussianHMM(
+                n_components=3,
+                covariance_type="full",
+                n_iter=200,
+                random_state=42,
+                tol=1e-4,
+            )
+            model.fit(seq)
+            labels = model.predict(seq)
+
+            # 레짐 번호를 평균 projection 기준으로 정렬
+            # proj1 부호: 낮을수록 위험(crash), 높을수록 안전(safe)
+            means = np.array([seq[labels == i].mean() if (labels == i).sum() > 0 else 0.0
+                              for i in range(3)])
+            order = np.argsort(means)          # 낮은 평균 → crash(0)
+            remap = {order[0]: 0, order[1]: 1, order[2]: 2}
+            regime_labels = np.array([remap[l] for l in labels])
+
+            # 현재 레짐: 가장 최근 5일 평균 상태
+            recent_labels = regime_labels[-5:]
+            counts = np.bincount(recent_labels, minlength=3)
+            current_regime_idx = int(np.argmax(counts))
+
+            total = len(regime_labels)
+            p_crash = float(np.sum(regime_labels == 0)) / total
+            p_elev  = float(np.sum(regime_labels == 1)) / total
+            p_safe  = float(np.sum(regime_labels == 2)) / total
+            return regime_labels, p_crash, p_elev, p_safe, current_regime_idx, "HMM"
+        except Exception:
+            pass  # HMM 수렴 실패 시 fallback
+
+    # Fallback: 절대값 임계값 (분위수 균등분할보다 의미있음)
+    # proj1은 SIR projection — 낮을수록 crash 위험
+    lo = float(np.percentile(proj1, 20))   # 하위 20% = crash
+    hi = float(np.percentile(proj1, 70))   # 상위 30% = safe
+    regime_labels = np.where(proj1 <= lo, 0, np.where(proj1 <= hi, 1, 2))
+    total = len(regime_labels)
+    p_crash = float(np.sum(regime_labels == 0)) / total
+    p_elev  = float(np.sum(regime_labels == 1)) / total
+    p_safe  = float(np.sum(regime_labels == 2)) / total
+    recent_labels = regime_labels[-5:]
+    counts = np.bincount(recent_labels, minlength=3)
+    current_regime_idx = int(np.argmax(counts))
+    return regime_labels, p_crash, p_elev, p_safe, current_regime_idx, "percentile-fallback"
 
 def fetch_parallel(syms, days=140):
     """여러 심볼을 병렬로 fetch — 총 소요시간 ≈ 가장 느린 1개"""
@@ -213,24 +276,31 @@ class handler(BaseHTTPRequestHandler):
             # SIR이 학습한 방향 beta1을 통해 X(현재 시점에 알 수 있는 시장변수)의
             # 투영값으로 분류해야 SIR이 실제로 사용되는 것이 됨.
             proj1 = projected[:, 0]
-            proj_q33 = float(np.percentile(proj1, 33))
-            proj_q66 = float(np.percentile(proj1, 66))
-            y_q33 = float(np.percentile(Y_cut, 33))   # 산점도 색칠 + 참고용으로 유지
+            y_q33 = float(np.percentile(Y_cut, 33))   # 산점도 색칠용 (사후 Y 기준)
             y_q66 = float(np.percentile(Y_cut, 66))
 
-            # 레짐별 포인트 — 산점도는 "사후적으로 실제 어떤 레짐이었는지" 보여주는
-            # 교육용 시각화이므로 실제 Y(미래 결과) 기준 색칠을 유지함.
-            # (이 색은 레짐 확률 계산에는 쓰이지 않음 — 그건 아래에서 projection 기준으로 별도 계산)
+            # ── HMM 레짐 분류 (분위수 균등분할 대체)
+            # SIR projection 시계열에 GaussianHMM(3 states) 적합
+            # → 데이터가 실제로 어느 상태에 있었는지 학습, 항상 33:33:34이 아님
+            regime_labels, p_crash, p_elev, p_safe, cur_regime_idx, regime_method =                 fit_hmm_regimes(proj1)
+            p_crash = round(p_crash, 4)
+            p_elev  = round(p_elev,  4)
+            p_safe  = round(p_safe,  4)
+
+            # 현재 레짐 이름
+            regime_names = ["CRASH ZONE", "ELEVATED", "SAFE ZONE"]
+            regime = regime_names[cur_regime_idx]
+
+            # ── 산점도 포인트: Y(미래 결과) 기준 색칠 유지 (교육용 시각화)
             points = []
-            regime_counts = {"crash":0, "elev":0, "safe":0}
             for i, (px, py) in enumerate(projected[:-1]):
                 y_val = Y_cut[i]
                 if y_val <= y_q33:
-                    col = "#F03860"; regime_counts["crash"] += 1
+                    col = "#F03860"
                 elif y_val <= y_q66:
-                    col = "#F0A800"; regime_counts["elev"]  += 1
+                    col = "#F0A800"
                 else:
-                    col = "#00D878"; regime_counts["safe"]  += 1
+                    col = "#00D878"
                 points.append({
                     "x": round(float(px)*60, 4),
                     "y": round(float(py)*60, 4),
@@ -241,19 +311,10 @@ class handler(BaseHTTPRequestHandler):
             cx = round(float(projected[-1, 0])*60, 4)
             cy = round(float(projected[-1, 1])*60, 4)
 
-            # ── 현재 레짐: SIR projection 기준 (룩어헤드 없음)
-            recent_proj = float(proj1[-5:].mean())
-            if recent_proj <= proj_q33:   regime = "CRASH ZONE"
-            elif recent_proj <= proj_q66: regime = "ELEVATED"
-            else:                          regime = "SAFE ZONE"
-
-            # ── 레짐 확률: SIR projection 기준으로 분류한 비율
-            # (산점도 색깔의 regime_counts와는 다른 기준 — 의도적으로 분리)
-            regime_labels = np.where(proj1<=proj_q33, 0, np.where(proj1<=proj_q66, 1, 2))
-            total_proj = len(regime_labels)
-            p_crash = round(float(np.sum(regime_labels==0)) / total_proj, 4)
-            p_elev  = round(float(np.sum(regime_labels==1)) / total_proj, 4)
-            p_safe  = round(float(np.sum(regime_labels==2)) / total_proj, 4)
+            # proj_q66: HMM crash/elevated 경계 — viz 캔버스 경계선용
+            # HMM에서는 crash(0) 레짐의 마지막 투영값 최댓값을 경계로 사용
+            crash_mask = (regime_labels == 0)
+            proj_q66 = float(proj1[crash_mask].max()) if crash_mask.sum() > 0                        else float(np.percentile(proj1, 66))
 
             # ── Density Matrix (혼합 상태, mixed state)
             # 대각항: SIR projection으로 계산한 실제 레짐 확률
@@ -344,6 +405,7 @@ class handler(BaseHTTPRequestHandler):
                     "expected_tail_risk": round(expected_tail_risk*100, 2),
                 },
                 "sir_meta": {
+                    "regime_method": regime_method,
                     "Y_definition":  "20-day forward maximum drawdown",
                     "Y_mean":        round(float(Y_cut.mean())*100, 2),
                     "Y_cvar5":       round(float(np.percentile(Y_cut, 5))*100, 2),
