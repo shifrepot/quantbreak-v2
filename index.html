@@ -3452,9 +3452,8 @@ function switchTab(id, btn){
   btn.classList.add('active');
   if(id==='quantum') setTimeout(()=>{ drawHilbert(sdrRevealed?1:0); },60);
 }
-// 초기 탭: 한국어 가이드 (다른 탭과 동일한 방식으로 표시)
+// 초기 탭: 한국어 가이드
 document.getElementById('tab-guide-kr').classList.add('visible');
-document.querySelector('[onclick="switchTab(\'guide-kr\',this)"]').classList.add('active');
 </script>
 </body>
 </html>
