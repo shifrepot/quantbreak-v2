@@ -141,8 +141,8 @@ class handler(BaseHTTPRequestHandler):
         sym   = TICKER_MAP.get(asset, asset)
 
         try:
-            # ── fetch: 자산 1번 + 시장변수 5개 묶음 1번 = 총 2번 요청
-            # 무료 Vercel 10초 제한 안에 맞추기 위해 배치 fetch 사용
+            # ── fetch: 자산 1번(v8) + 시장변수 5개 묶음 1번(spark) = 총 2번 요청
+            # fallback 개별 fetch 제거 — 배치 실패 시 즉시 에러 반환 (10초 초과 방지)
             asset_prices = fetch_yahoo(sym, 140)
             if not asset_prices or len(asset_prices) < 40:
                 raise ValueError(f"Not enough asset data for {sym}")
@@ -154,27 +154,13 @@ class handler(BaseHTTPRequestHandler):
                 for t in range(len(asset_prices) - horizon)
             ])
 
-            # 시장변수 5개 배치 fetch (1번 요청)
+            # 시장변수 5개 배치 fetch (1번 요청, spark API)
             batch = fetch_yahoo_batch(MARKET_TICKERS, days=140)
-            mkt_cols = []
-            for mkt_sym in MARKET_TICKERS:
-                mp = batch.get(mkt_sym)
-                if mp and len(mp) > 20:
-                    mkt_cols.append(mp)
-
-            # 배치 실패 시 개별 fetch fallback
-            if len(mkt_cols) < 2:
-                mkt_cols = []
-                for mkt_sym in MARKET_TICKERS:
-                    try:
-                        mp = fetch_yahoo(mkt_sym, 140)
-                        if mp and len(mp) > 20:
-                            mkt_cols.append(mp)
-                    except Exception:
-                        continue
+            mkt_cols = [batch[s] for s in MARKET_TICKERS
+                        if batch.get(s) and len(batch[s]) > 20]
 
             if len(mkt_cols) < 2:
-                raise ValueError("Not enough market data")
+                raise ValueError("Market data unavailable. Please try again.")
 
             min_len  = min(len(Y), min(len(c) for c in mkt_cols))
             mkt_cols = [c[-min_len:] for c in mkt_cols]

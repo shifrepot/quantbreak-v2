@@ -403,7 +403,7 @@ body::after {
   <!-- ══════════════════════════════════════════════════════ -->
   <!-- 한국어 연구 가이드 탭                                  -->
   <!-- ══════════════════════════════════════════════════════ -->
-  <div class="panel" id="tab-guide-kr" style="display:block;">
+  <div class="panel" id="tab-guide-kr">
 
     <!-- HERO HEADER -->
     <div style="text-align:center;padding:48px 24px 32px;border-bottom:1px solid var(--line);margin-bottom:40px;">
@@ -1605,7 +1605,7 @@ body::after {
   </div>
 
   <!-- 용어 사전 탭 -->
-  <div class="panel" id="tab-glossary" style="display:none;">
+  <div class="panel" id="tab-glossary">
     <div style="max-width:860px;margin:0 auto;padding:8px 0 48px;">
 
       <div style="margin-bottom:32px;">
@@ -3345,15 +3345,27 @@ async function runLiveExample(){
 
 async function fetchAndApplySDR(asset){
   try{
-    const res  = await fetch(`${API_BASE}/api/sdr?asset=${asset}`);
-    const data = await res.json();
-    if(data.error) throw new Error(data.error);
+    // ── 두 API를 동시에 호출
+    // sdr_viz: 시각화 전용 (3변수, 60일) — 빠름 (~4초), 그래프용 points
+    // sdr:     실제 계산 (5변수, 140일) — 느림, 레짐확률/CVaR/DensityMatrix
+    const [vizRes, sdrRes] = await Promise.all([
+      fetch(`${API_BASE}/api/sdr_viz?asset=${asset}`),
+      fetch(`${API_BASE}/api/sdr?asset=${asset}`)
+    ]);
 
-    // ── SDR 투영 결과
-    stableCloud = data.points.map(p=>({
-      x: p.x, y: p.y, col: p.col,
-      op: 0, tOp: 0.6+Math.random()*0.4
-    }));
+    // ── 시각화 데이터 먼저 적용 (빠르게 그래프 표시)
+    const vizData = await vizRes.json();
+    if(vizData.ok && vizData.points){
+      stableCloud = vizData.points.map(p=>({
+        x: p.x, y: p.y, col: p.col,
+        op: 0, tOp: 0.6+Math.random()*0.4
+      }));
+      if(vizData.viz) window._sdrViz = vizData.viz;
+    }
+
+    // ── 실제 계산 데이터 적용
+    const data = await sdrRes.json();
+    if(data.error) throw new Error(data.error);
 
     if(ASSETS[asset]){
       ASSETS[asset].regime = data.regime;
@@ -3440,8 +3452,9 @@ function switchTab(id, btn){
   btn.classList.add('active');
   if(id==='quantum') setTimeout(()=>{ drawHilbert(sdrRevealed?1:0); },60);
 }
-// 초기 탭: 한국어 가이드
+// 초기 탭: 한국어 가이드 (다른 탭과 동일한 방식으로 표시)
 document.getElementById('tab-guide-kr').classList.add('visible');
+document.querySelector('[onclick="switchTab(\'guide-kr\',this)"]').classList.add('active');
 </script>
 </body>
 </html>
